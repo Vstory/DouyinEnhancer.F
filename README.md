@@ -38,6 +38,7 @@ A small Xposed module that adds quality-of-life features to Douyin
 - Block auto video resumption on foreground return
 - Block specific playback‑page components
 - Selectively removing some navigation items from the top or bottom bar
+- Hiding follow button below avatar on playback
 
 ---
 See more about future development: [PM.md](PM.md)
