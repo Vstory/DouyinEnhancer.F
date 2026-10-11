@@ -20,9 +20,7 @@ object FeedResumeHooker : YukiBaseHooker() {
 
     override fun onHook() {
         if (!ConfigManager.feed.blockResumePlayback.value) {
-            if (verbose) {
-                YLog.debug("$TAG: block resume playback is disabled, skipping hook")
-            }
+            YLog.info("$TAG: block resume playback is disabled, skipping hook")
             return
         }
 

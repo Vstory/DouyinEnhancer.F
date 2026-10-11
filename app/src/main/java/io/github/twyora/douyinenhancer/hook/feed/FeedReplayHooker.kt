@@ -21,9 +21,7 @@ object FeedReplayHooker : YukiBaseHooker() {
 
     override fun onHook() {
         if (!ConfigManager.feed.blockAutoReplay.value) {
-            if (verbose) {
-                YLog.debug("$TAG: block auto replay is disabled, skipping hook")
-            }
+            YLog.info("$TAG: block auto replay is disabled, skipping hook")
             return
         }
 

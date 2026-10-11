@@ -21,9 +21,7 @@ object ListenAwemeFilterHooker : YukiBaseHooker() {
 
     override fun onHook() {
         if (!ConfigManager.feed.bypassListenAwemeRestriction.value) {
-            if (verbose) {
-                YLog.debug("$TAG: bypass listen aweme restriction is disabled, skipping hook")
-            }
+            YLog.info("$TAG: bypass listen aweme restriction is disabled, skipping hook")
             return
         }
         installBypassListenAwemeFilterHook()

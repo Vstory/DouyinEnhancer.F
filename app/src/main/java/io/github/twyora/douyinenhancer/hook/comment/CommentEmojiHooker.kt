@@ -44,9 +44,7 @@ object CommentEmojiHooker : YukiBaseHooker() {
 
     override fun onHook() {
         if (!ConfigManager.save.unlockCommentEmoji.value) {
-            if (verbose) {
-                YLog.debug("$TAG: unlock comment emoji is disabled, skipping hook")
-            }
+            YLog.info("$TAG: unlock comment emoji is disabled, skipping hook")
             return
         }
 

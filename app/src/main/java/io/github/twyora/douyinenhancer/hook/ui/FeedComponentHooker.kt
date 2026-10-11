@@ -16,9 +16,6 @@ object FeedComponentHooker : YukiBaseHooker() {
     private val packageInstance
         get() = DouyinPackage.instance
 
-    private val verbose
-        get() = !ConfigManager.module.verboseDisabled.value
-
     private val blockComponentIds by lazy {
         val config = ConfigManager.playbackComponentBlock
         listOf(
@@ -88,9 +85,7 @@ object FeedComponentHooker : YukiBaseHooker() {
 
     override fun onHook() {
         if (!ConfigManager.playbackComponentBlock.mainSwitch.value) {
-            if (verbose) {
-                YLog.debug("$TAG: playback component block is disabled, skipping hook")
-            }
+            YLog.info("$TAG: playback component block is disabled, skipping hook")
             return
         }
         installPlaybackComponentBlockHook()

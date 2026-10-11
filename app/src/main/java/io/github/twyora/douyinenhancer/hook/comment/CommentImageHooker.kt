@@ -20,9 +20,7 @@ object CommentImageHooker : YukiBaseHooker() {
 
     override fun onHook() {
         if (!ConfigManager.save.purifyCommentImage.value) {
-            if (verbose) {
-                YLog.debug("$TAG: purify comment image disabled, skipping hook")
-            }
+            YLog.info("$TAG: purify comment image disabled, skipping hook")
             return
         }
 

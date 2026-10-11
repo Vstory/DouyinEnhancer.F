@@ -23,9 +23,7 @@ object FeedDoubleTapOpenCommentHooker : YukiBaseHooker() {
 
     override fun onHook() {
         if (!ConfigManager.feed.doubleTapOpenComment.value) {
-            if (verbose) {
-                YLog.debug("$TAG: double-tap to open comment panel is disabled, skipping hook")
-            }
+            YLog.info("$TAG: double-tap to open comment panel is disabled, skipping hook")
             return
         }
 

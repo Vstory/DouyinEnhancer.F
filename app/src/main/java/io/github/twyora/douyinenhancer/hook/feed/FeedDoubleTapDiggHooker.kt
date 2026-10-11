@@ -19,9 +19,7 @@ object FeedDoubleTapDiggHooker : YukiBaseHooker() {
 
     override fun onHook() {
         if (!ConfigManager.feed.interceptDoubleTapDigg.value) {
-            if (verbose) {
-                YLog.debug("$TAG: double-tap digg interception is disabled, skipping hook")
-            }
+            YLog.info("$TAG: double-tap digg interception is disabled, skipping hook")
             return
         }
 
