@@ -1,5 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.ui
 
+import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -18,7 +19,15 @@ object FeedAvatarHooker : YukiBaseHooker() {
         get() = ConfigManager.module.verboseDisabled.value
 
     override fun onHook() {
-        packageInstance.feedAvatarPresenter.selfClass?.resolveMethodOrNull(
+        if (!ConfigManager.ui.hideFollowButton.value) {
+            YLog.info("$TAG: follow button hiding disabled, skipping hook")
+            return
+        }
+        installHideFollowButtonHook()
+    }
+
+    private fun installHideFollowButtonHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+        return packageInstance.feedAvatarPresenter.selfClass?.resolveMethodOrNull(
             packageInstance.feedAvatarPresenter.updateFollowView()
         )?.hook {
             before {
