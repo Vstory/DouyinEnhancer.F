@@ -27,9 +27,7 @@ object FeedDownloadHooker : YukiBaseHooker() {
 
     override fun onHook() {
         if (!ConfigManager.save.feedDownloadBypass.value) {
-            if (verbose) {
-                YLog.debug("$TAG: bypass feed download is disabled, skipping hook")
-            }
+            YLog.info("$TAG: bypass feed download is disabled, skipping hook")
             return
         }
         val transaction = HookTransaction(TAG)

@@ -26,9 +26,7 @@ object DanmakuViewHooker : YukiBaseHooker() {
 
     override fun onHook() {
         if (!ConfigManager.ui.keepDanmakuVisible.value) {
-            if (verbose) {
-                YLog.debug("$TAG: keep danmaku visible disabled, skip danmaku hooks")
-            }
+            YLog.info("$TAG: keep danmaku visible disabled, skipping hook")
             return
         }
         installAssignDanmakuViewIdHook()

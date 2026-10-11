@@ -20,9 +20,7 @@ object FeedVideoHooker : YukiBaseHooker() {
 
     override fun onHook() {
         if (!ConfigManager.save.feedVideoRemoveWatermark.value) {
-            if (verbose) {
-                YLog.debug("$TAG: remove watermark is disabled, skipping hook")
-            }
+            YLog.info("$TAG: remove watermark is disabled, skipping hook")
             return
         }
 

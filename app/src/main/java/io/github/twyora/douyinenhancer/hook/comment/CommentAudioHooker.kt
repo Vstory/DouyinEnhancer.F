@@ -32,9 +32,7 @@ object CommentAudioHooker : YukiBaseHooker() {
 
     override fun onHook() {
         if (!ConfigManager.save.downloadCommentAudio.value) {
-            if (verbose) {
-                YLog.debug("$TAG: download comment audio is disabled, skipping hook")
-            }
+            YLog.info("$TAG: download comment audio is disabled, skipping hook")
             return
         }
 
