@@ -41,11 +41,8 @@ object HomeTopTabHooker : YukiBaseHooker() {
             return@pruneTop
         }
 
-        val removed = topTabIds.removeIf {
+        topTabIds.removeIf {
             it in tabIdsToRemove
-        }
-        if (!removed) {
-            YLog.warn("$TAG: no blocklisted top tab ids were removed. blocklist: $tabIdsToRemove, topTabIds: $topTabIds")
         }
     }
 

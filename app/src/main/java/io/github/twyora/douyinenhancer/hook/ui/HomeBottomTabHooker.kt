@@ -37,11 +37,8 @@ object HomeBottomTabHooker : YukiBaseHooker() {
             return@pruneBottom
         }
 
-        val removed = bottomTabIds.removeIf {
+        bottomTabIds.removeIf {
             it in tabIdsToRemove
-        }
-        if (!removed) {
-            YLog.warn("$TAG: no blocklisted bottom tab ids were removed. blocklist: $tabIdsToRemove, bottomTabIds: $bottomTabIds")
         }
     }
 
