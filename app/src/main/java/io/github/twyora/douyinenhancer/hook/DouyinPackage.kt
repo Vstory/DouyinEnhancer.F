@@ -129,6 +129,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
     val storyServiceImpl = StoryServiceImplModule(hookInfo.storyServiceImpl, classLoader)
     val homeTabDataSourceServer = HomeTabDataSourceServerModule(hookInfo.homeTabDataSourceServer, classLoader)
     val homeTabDataSourceDefault = HomeTabDataSourceDefaultModule(hookInfo.homeTabDataSourceDefault, classLoader)
+    val feedAvatarPresenter = FeedAvatarPresenterModule(hookInfo.feedAvatarPresenter, classLoader)
 
     class CommentImageStructModule internal constructor(
         private val configs: Configs.CommentImageStruct,
@@ -395,7 +396,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
 
         companion object {
             const val FOLLOW_STATUS_UNFOLLOWED = 0
-//            const val FOLLOW_STATUS_FOLLOWING = 1
+            const val FOLLOW_STATUS_FOLLOWING = 1
 //            const val FOLLOW_STATUS_MUTUAL_FOLLOW = 2
         }
     }
@@ -1082,6 +1083,20 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
         fun getShowingTopTabIds() = Method(
             configs.getShowingTopTabIds.nameOrNull,
             configs.getShowingTopTabIds.parameters.valuesListOrNull
+        )
+    }
+
+    class FeedAvatarPresenterModule internal constructor(
+        private val configs: Configs.FeedAvatarPresenter,
+        private val classLoader: ClassLoader
+    ) {
+        val selfClass by weak {
+            configs.class_.nameOrNull?.toClass(classLoader)
+        }
+
+        fun updateFollowView() = Method(
+            configs.updateFollowView.nameOrNull,
+            configs.updateFollowView.parameters.valuesListOrNull
         )
     }
 
@@ -4005,6 +4020,48 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                             parameters = MethodKt.parameters {
                                 values.clear()
                                 values.addAll(getShowingTopTabIdsMethodData.paramTypeNames)
+                            }
+                        }
+                    }.onFailure {
+                        YLog.error(populateFailedMsg.format(TAG), it)
+                    }
+                }
+
+                feedAvatarPresenter = feedAvatarPresenter {
+                    runCatching {
+                        val feedAvatarPresenterClassData = bridge.getClassData(
+                            "com.ss.android.ugc.aweme.feed.quick.presenter.FeedAvatarPresenter"
+                        )
+                        val updateFollowViewMethodData = feedAvatarPresenterClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    modifiers = Modifier.PUBLIC
+                                    params {
+                                        add("int")
+                                        add("boolean")
+                                    }
+                                    returnType = "void"
+                                    usingStrings {
+                                        add("updateFollowView")
+                                    }
+                                }
+                            }.singleOrNull()
+                        }
+
+                        if (feedAvatarPresenterClassData == null || updateFollowViewMethodData == null) {
+                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
+                            return@feedAvatarPresenter
+                        }
+
+                        class_ = class_ {
+                            name = feedAvatarPresenterClassData.name
+                        }
+                        updateFollowView = method {
+                            name = updateFollowViewMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(updateFollowViewMethodData.paramTypeNames)
                             }
                         }
                     }.onFailure {

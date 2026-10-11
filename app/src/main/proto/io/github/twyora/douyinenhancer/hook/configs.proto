@@ -412,6 +412,11 @@ message HomeTabDataSourceDefault {
 }
 // end IHomeTabDataSource implementers
 
+message FeedAvatarPresenter {
+  optional Class class = 1;
+  optional Method update_follow_view = 2;
+}
+
 message HookInfo {
   uint64 last_update_time = 1;
   uint32 module_version_code = 2;
@@ -469,6 +474,7 @@ message HookInfo {
   optional VideoPlayerStatus video_player_status = 63;
   optional HomeTabDataSourceServer home_tab_data_source_server = 66;
   optional HomeTabDataSourceDefault home_tab_data_source_default = 67;
+  optional FeedAvatarPresenter feed_avatar_presenter = 68;
 
   reserved 13, 18, 32, 35, 36, 38, 39, 40, 55, 64, 65;
 }
