@@ -363,8 +363,9 @@ message VideoEvent {
 
 message CleanModePresenter {
   optional Class class = 1;
-  optional Method enter_clean_mode = 2;
-  optional Method set_visibility = 3;
+  optional Method manage_view_visibility = 4;
+
+  reserved 2, 3;
 }
 
 message DanmakuView {
