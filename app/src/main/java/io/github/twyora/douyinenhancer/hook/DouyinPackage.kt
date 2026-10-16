@@ -3369,8 +3369,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                             }.singleOrNull()
                         }
 
-                        if (cleanModePresenterClassData == null || manageViewVisibilityMethodData == null
-                        ) {
+                        if (cleanModePresenterClassData == null || manageViewVisibilityMethodData == null) {
                             YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
                             return@cleanModePresenter
                         }
