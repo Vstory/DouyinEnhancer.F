@@ -1451,11 +1451,40 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                 }
 
                 commentAudioStruct = commentAudioStruct {
-                    class_ = class_ {
-                        name = "com.ss.android.ugc.aweme.comment.model.CommentAudioStruct"
-                    }
-                    content = field {
-                        name = "content"
+                    runCatching {
+                        val commentAudioStructClassData = bridge.getClassData(
+                            "com.ss.android.ugc.aweme.comment.model.CommentAudioStruct"
+                        )
+                        val contentFieldData = commentAudioStructClassData?.let {
+                            bridge.findField {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    annotations {
+                                        add {
+                                            type = "com.google.gson.annotations.SerializedName"
+                                            addElement {
+                                                name = "value"
+                                                stringValue("content")
+                                            }
+                                        }
+                                    }
+                                }
+                            }.singleOrNull()
+                        }
+
+                        if (commentAudioStructClassData == null || contentFieldData == null) {
+                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
+                            return@commentAudioStruct
+                        }
+
+                        class_ = class_ {
+                            name = commentAudioStructClassData.name
+                        }
+                        content = field {
+                            name = contentFieldData.name
+                        }
+                    }.onFailure {
+                        YLog.error(populateFailedMsg.format(TAG), it)
                     }
                 }
 
