@@ -3400,16 +3400,14 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                         }
                         this@apply.playStatusHelper = playStatusHelper {
                             runCatching {
-                                val playStatusHelperClassData = mPlayStateHelperFieldData.declaredClass
-                                val playStatusFieldData = playStatusHelperClassData.let {
-                                    bridge.findField {
-                                        searchClasses = listOf(it)
-                                        matcher {
-                                            modifiers = Modifier.PUBLIC
-                                            type = "int"
-                                        }
-                                    }.singleOrNull()
-                                }
+                                val playStatusHelperClassData = mPlayStateHelperFieldData.type
+                                val playStatusFieldData = bridge.findField {
+                                    searchClasses = listOf(playStatusHelperClassData)
+                                    matcher {
+                                        modifiers = Modifier.PUBLIC
+                                        type = "int"
+                                    }
+                                }.singleOrNull()
                                 if (playStatusFieldData == null) {
                                     YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
                                     return@playStatusHelper
