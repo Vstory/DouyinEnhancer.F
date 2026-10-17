@@ -425,6 +425,23 @@ message PlayStatusHelper {
   optional Field play_status = 2;
 }
 
+message HeifImage {
+  optional Class class = 1;
+  optional Method create = 2;
+  optional Method dispose = 3;
+  optional Method get_width = 4;
+  optional Method get_height = 5;
+  optional Method get_frame = 6;
+  optional Method get_frame_count = 7;
+  optional Method get_frame_durations = 8;
+}
+
+message HeifFrame {
+  optional Class class = 1;
+  optional Method render_frame = 2;
+  optional Method dispose = 3;
+}
+
 message HookInfo {
   uint64 last_update_time = 1;
   uint32 module_version_code = 2;
@@ -484,6 +501,8 @@ message HookInfo {
   optional HomeTabDataSourceDefault home_tab_data_source_default = 67;
   optional FeedAvatarPresenter feed_avatar_presenter = 68;
   optional PlayStatusHelper play_status_helper = 69;
+  optional HeifImage heif_image = 70;
+  optional HeifFrame heif_frame = 71;
 
   reserved 13, 18, 32, 35, 36, 38, 39, 40, 55, 64, 65;
 }
