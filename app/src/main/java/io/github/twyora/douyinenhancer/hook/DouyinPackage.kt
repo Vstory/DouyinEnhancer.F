@@ -3378,7 +3378,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                                     bridge.findField {
                                         searchClasses = listOf(it)
                                         matcher {
-                                            modifiers = Modifier.PUBLIC
+                                            modifiers = Modifier.PUBLIC or Modifier.FINAL
                                             type = "int"
                                         }
                                     }.singleOrNull()
