@@ -20,7 +20,8 @@ object HomeTopTabHooker : YukiBaseHooker() {
         val config = ConfigManager.homeTab
         listOf(
             config.hideHomepageFollow.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_FOLLOW,
-            config.hideHomepageFamiliar.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_FAMILIAR,
+            config.hideHomepageFamiliarTop.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_FAMILIAR,
+            config.hideHomepageMallTop.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_MALL,
             config.hideHomepageGroupon.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_GROUPON,
             config.hideHomepageHotContainer.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_HOT_CONTAINER,
             config.hideHomepageNearby.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_NEARBY,

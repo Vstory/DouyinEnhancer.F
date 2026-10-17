@@ -19,6 +19,11 @@
 
     <CheckBoxPreference
         android:defaultValue="false"
+        android:key="bottom_tab_hide_homepage_familiar"
+        android:title="@string/bottom_tab_hide_homepage_familiar" />
+
+    <CheckBoxPreference
+        android:defaultValue="false"
         android:key="bottom_tab_hide_homepage_publish"
         android:title="@string/bottom_tab_hide_homepage_publish" />
 
@@ -52,6 +57,11 @@
         android:defaultValue="false"
         android:key="top_tab_hide_homepage_familiar"
         android:title="@string/top_tab_hide_homepage_familiar" />
+
+    <CheckBoxPreference
+        android:defaultValue="false"
+        android:key="top_tab_hide_homepage_mall"
+        android:title="@string/top_tab_hide_homepage_mall" />
 
     <CheckBoxPreference
         android:defaultValue="false"

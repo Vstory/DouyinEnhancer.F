@@ -20,7 +20,8 @@ object HomeBottomTabHooker : YukiBaseHooker() {
         val config = ConfigManager.homeTab
         listOf(
             config.hideHomepageHome.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_HOME,
-            config.hideHomepageMall.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_MALL,
+            config.hideHomepageMallBottom.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_MALL,
+            config.hideHomepageFamiliarBottom.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_FAMILIAR,
             config.hideHomepagePublish.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_PUBLISH,
             config.hideHomepageNotification.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_NOTIFICATION,
             config.hideHomepageProfile.value to DouyinPackage.TabNodeModule.TAB_ID_HOMEPAGE_PROFILE

@@ -137,6 +137,7 @@
     <string name="bottom_tab_main_switch_summary">Enable to configure hiding of bottom navigation entries</string>
     <string name="bottom_tab_hide_homepage_home">Home</string>
     <string name="bottom_tab_hide_homepage_mall">Mall</string>
+    <string name="bottom_tab_hide_homepage_familiar">Friends</string>
     <string name="bottom_tab_hide_homepage_publish">Publish Button</string>
     <string name="bottom_tab_hide_homepage_notification">Messages</string>
     <string name="bottom_tab_hide_homepage_profile">Profile</string>
@@ -144,6 +145,7 @@
     <string name="top_tab_main_switch_summary">Enable to configure hiding of top navigation entries</string>
     <string name="top_tab_hide_homepage_follow">Follow</string>
     <string name="top_tab_hide_homepage_familiar">Friends</string>
+    <string name="top_tab_hide_homepage_mall">Mall</string>
     <string name="top_tab_hide_homepage_groupon">Deals</string>
     <string name="top_tab_hide_homepage_hot_container">For You</string>
     <string name="top_tab_hide_homepage_nearby">Nearby</string>
