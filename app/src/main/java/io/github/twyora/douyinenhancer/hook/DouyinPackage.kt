@@ -1451,11 +1451,40 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                 }
 
                 commentAudioStruct = commentAudioStruct {
-                    class_ = class_ {
-                        name = "com.ss.android.ugc.aweme.comment.model.CommentAudioStruct"
-                    }
-                    content = field {
-                        name = "content"
+                    runCatching {
+                        val commentAudioStructClassData = bridge.getClassData(
+                            "com.ss.android.ugc.aweme.comment.model.CommentAudioStruct"
+                        )
+                        val contentFieldData = commentAudioStructClassData?.let {
+                            bridge.findField {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    annotations {
+                                        add {
+                                            type = "com.google.gson.annotations.SerializedName"
+                                            addElement {
+                                                name = "value"
+                                                stringValue("content")
+                                            }
+                                        }
+                                    }
+                                }
+                            }.singleOrNull()
+                        }
+
+                        if (commentAudioStructClassData == null || contentFieldData == null) {
+                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
+                            return@commentAudioStruct
+                        }
+
+                        class_ = class_ {
+                            name = commentAudioStructClassData.name
+                        }
+                        content = field {
+                            name = contentFieldData.name
+                        }
+                    }.onFailure {
+                        YLog.error(populateFailedMsg.format(TAG), it)
                     }
                 }
 
@@ -3265,10 +3294,6 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                                         }
                                     }
                                 }
-                            }.also { fields ->
-                                fields.forEach { field ->
-                                    YLog.debug("$TAG: ${field.className}.${field.name}")
-                                }
                             }.singleOrNull()
                         }
 
@@ -3349,7 +3374,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                                     bridge.findField {
                                         searchClasses = listOf(it)
                                         matcher {
-                                            modifiers = Modifier.PUBLIC
+                                            modifiers = Modifier.PUBLIC or Modifier.FINAL
                                             type = "int"
                                         }
                                     }.singleOrNull()
@@ -3371,16 +3396,14 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                         }
                         this@apply.playStatusHelper = playStatusHelper {
                             runCatching {
-                                val playStatusHelperClassData = mPlayStateHelperFieldData.declaredClass
-                                val playStatusFieldData = playStatusHelperClassData.let {
-                                    bridge.findField {
-                                        searchClasses = listOf(it)
-                                        matcher {
-                                            modifiers = Modifier.PUBLIC
-                                            type = "int"
-                                        }
-                                    }.singleOrNull()
-                                }
+                                val playStatusHelperClassData = mPlayStateHelperFieldData.type
+                                val playStatusFieldData = bridge.findField {
+                                    searchClasses = listOf(playStatusHelperClassData)
+                                    matcher {
+                                        modifiers = Modifier.PUBLIC
+                                        type = "int"
+                                    }
+                                }.singleOrNull()
                                 if (playStatusFieldData == null) {
                                     YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
                                     return@playStatusHelper
