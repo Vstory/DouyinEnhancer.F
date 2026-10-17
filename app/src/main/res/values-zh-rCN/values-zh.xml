@@ -137,6 +137,7 @@
     <string name="bottom_tab_main_switch_summary">开启后可以使用隐藏底部导航项功能</string>
     <string name="bottom_tab_hide_homepage_home">首页</string>
     <string name="bottom_tab_hide_homepage_mall">商城</string>
+    <string name="bottom_tab_hide_homepage_familiar">朋友</string>
     <string name="bottom_tab_hide_homepage_publish">发布按钮</string>
     <string name="bottom_tab_hide_homepage_notification">消息</string>
     <string name="bottom_tab_hide_homepage_profile">我</string>
@@ -144,6 +145,7 @@
     <string name="top_tab_main_switch_summary">开启后可以使用隐藏顶栏导航项功能</string>
     <string name="top_tab_hide_homepage_follow">关注</string>
     <string name="top_tab_hide_homepage_familiar">朋友</string>
+    <string name="top_tab_hide_homepage_mall">商城</string>
     <string name="top_tab_hide_homepage_groupon">团购</string>
     <string name="top_tab_hide_homepage_hot_container">推荐</string>
     <string name="top_tab_hide_homepage_nearby">同城</string>
