@@ -79,7 +79,11 @@ fun HomeContent(uiState: HomeContentUiState, modifier: Modifier = Modifier, uiAc
                     } else {
                         it
                     }
-                } ?: stringResource(R.string.pref_about_update_available_summary)
+                } ?: if (BuildConfig.VERSION_NAME == uiState.updateState.latestVersionName) {
+                    stringResource(R.string.pref_about_up_to_date_summary)
+                } else {
+                    stringResource(R.string.pref_about_update_available_summary)
+                }
             ) {
                 uiActions.onViewRelease()
             }
