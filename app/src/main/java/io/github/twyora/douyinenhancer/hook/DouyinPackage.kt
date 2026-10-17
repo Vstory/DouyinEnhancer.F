@@ -3294,10 +3294,6 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                                         }
                                     }
                                 }
-                            }.also { fields ->
-                                fields.forEach { field ->
-                                    YLog.debug("$TAG: ${field.className}.${field.name}")
-                                }
                             }.singleOrNull()
                         }
 
