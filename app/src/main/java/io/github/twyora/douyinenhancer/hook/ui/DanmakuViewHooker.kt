@@ -66,8 +66,8 @@ object DanmakuViewHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installBlockDanmakuContainerVisibilityChangeHook() {
-        packageInstance.cleanModePresenter.selfClass?.resolveMethodOrNull(
+    private fun installBlockDanmakuContainerVisibilityChangeHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+        return packageInstance.cleanModePresenter.selfClass?.resolveMethodOrNull(
             packageInstance.cleanModePresenter.manageViewVisibility()
         )?.hook {
             before {
