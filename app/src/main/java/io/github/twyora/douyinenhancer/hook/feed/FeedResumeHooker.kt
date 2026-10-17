@@ -24,29 +24,23 @@ object FeedResumeHooker : YukiBaseHooker() {
             return
         }
 
-        // I have another choice: intercept FeedPanelProxy.handleTextureAvailable,
-        // (the name "FeedPanelProxy" is given by me; it is obfuscated by the host and owned by BaseListFragmentPanel.basePanelProxy)
-        // instead of checking videoType using a magic number inside BaseListFragmentPanel.handleVideoEvent.
-        // The reason I ultimately chose this strategy is that I cannot confirm whether FeedPanelProxy
-        // will be removed or obfuscated into another name. If this functionality breaks,
-        // maintaining extra hook points becomes an additional maintenance burden
         packageInstance.baseListFragmentPanel.selfClass?.resolveMethodOrNull(
-            packageInstance.baseListFragmentPanel.handleVideoEvent()
+            packageInstance.baseListFragmentPanel.canPlayOnVideoReady()
         )?.hook {
             before {
-                val videoType = args[0]?.getFieldOrNull<Int>(
-                    packageInstance.videoEvent.type()
-                ) ?: run {
-                    YLog.error("$TAG: video type is null")
-                    return@before
-                }
+                val playStatus = instance.getFieldOrNull<Any>(
+                    packageInstance.baseListFragmentPanel.mPlayStateHelper()
+                )?.getFieldOrNull<Int>(
+                    packageInstance.playStatusHelper.playStatus()
+                ) ?: DouyinPackage.PlayStatusHelperModule.PLAY_STATUS_PAUSED
 
-                if (videoType != DouyinPackage.VideoEventModule.EVENT_TEXTURE_AVAILABLE) {
+                if (playStatus != DouyinPackage.PlayStatusHelperModule.PLAY_STATUS_PAUSED) {
                     return@before
                 } else if (verbose) {
-                    YLog.debug("$TAG: intercepting resume of video playback on surface created")
+                    YLog.debug("$TAG: current play status is paused; intercept to prevent resume")
                 }
-                resultNull()
+
+                resultFalse()
             }
         }?.result {
             onConductFailure { _, throwable ->

@@ -34,7 +34,10 @@ import kotlin.time.measureTimedValue
 import org.erdtman.jcs.JsonCanonicalizer
 import org.json.JSONObject
 import org.luckypray.dexkit.DexKitBridge
+import org.luckypray.dexkit.query.enums.MatchType
 import org.luckypray.dexkit.query.enums.StringMatchType
+import org.luckypray.dexkit.query.matchers.base.AccessFlagsMatcher
+import org.luckypray.dexkit.query.matchers.base.IntRange
 import org.luckypray.dexkit.query.matchers.base.OpCodesMatcher
 
 val Configs.Class.nameOrNull
@@ -130,6 +133,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
     val homeTabDataSourceServer = HomeTabDataSourceServerModule(hookInfo.homeTabDataSourceServer, classLoader)
     val homeTabDataSourceDefault = HomeTabDataSourceDefaultModule(hookInfo.homeTabDataSourceDefault, classLoader)
     val feedAvatarPresenter = FeedAvatarPresenterModule(hookInfo.feedAvatarPresenter, classLoader)
+    val playStatusHelper = PlayStatusHelperModule(hookInfo.playStatusHelper, classLoader)
 
     class CommentImageStructModule internal constructor(
         private val configs: Configs.CommentImageStruct,
@@ -555,6 +559,13 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
             configs.getCurrentAweme.parameters.valuesListOrNull
         )
 
+        fun canPlayOnVideoReady() = Method(
+            configs.canPlayOnVideoReady.nameOrNull,
+            configs.canPlayOnVideoReady.parameters.valuesListOrNull
+        )
+
+        fun mPlayStateHelper() = Field(configs.mPlayStateHelper.nameOrNull)
+
         fun onVideoPlayerEvent() = Method(
             configs.onVideoPlayerEvent.nameOrNull,
             configs.onVideoPlayerEvent.parameters.valuesListOrNull
@@ -594,7 +605,6 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
         fun type() = Field(configs.type.nameOrNull)
 
         companion object {
-            const val EVENT_TEXTURE_AVAILABLE = 0
             const val EVENT_OPEN_COMMENT_PANEL = 7
         }
     }
@@ -1093,6 +1103,22 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
             configs.updateFollowView.nameOrNull,
             configs.updateFollowView.parameters.valuesListOrNull
         )
+    }
+
+    class PlayStatusHelperModule internal constructor(private val configs: Configs.PlayStatusHelper, private val classLoader: ClassLoader) {
+        val selfClass by weak {
+            configs.class_.nameOrNull?.toClass(classLoader)
+        }
+
+        fun playStatus() = Field(configs.playStatus.nameOrNull)
+
+        companion object {
+            // const val PLAY_STATUS_IDLE = 0
+            // const val PLAY_STATUS_PREPARING = 1
+            // const val PLAY_STATUS_PLAYING = 2
+            const val PLAY_STATUS_PAUSED = 3
+            // const val PLAY_STATUS_COMPLETED = 4
+        }
     }
 
     companion object {
@@ -3189,20 +3215,74 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                             }.singleOrNull()
                         }
 
-                        if (baseListFragmentPanelClassData == null || handleDoubleClickMethodData == null ||
+                        val canPlayOnVideoReadyMethodData = baseListFragmentPanelClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    modifiers(
+                                        AccessFlagsMatcher().apply {
+                                            modifiers = Modifier.PUBLIC
+                                            matchType = MatchType.Equals
+                                        }
+                                    )
+                                    returnType = "boolean"
+                                    usingNumbers {
+                                        add(1)
+                                    }
+                                    opNames(listOf("const/4", "return"), opCodeSize = IntRange(2))
+                                    callerMethods {
+                                        add {
+                                            usingStrings {
+                                                add("handleTextureAvailable", StringMatchType.Equals)
+                                                add("BaseListFragmentPanel", StringMatchType.Equals)
+                                            }
+                                        }
+                                    }
+                                }
+                            }.singleOrNull()
+                        }
+
+                        val mPlayStateHelperFieldData = baseListFragmentPanelClassData?.let {
+                            bridge.findField {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    modifiers = Modifier.PUBLIC
+                                    type {
+                                        modifiers = Modifier.PUBLIC or Modifier.FINAL
+                                        fields {
+                                            add {
+                                                modifiers = Modifier.PUBLIC
+                                                type = "int"
+                                                readMethods {
+                                                    add {
+                                                        declaredClass = it.name
+                                                        usingStrings {
+                                                            add("onNetStateChangeEvent")
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }.also { fields ->
+                                fields.forEach { field ->
+                                    YLog.debug("$TAG: ${field.className}.${field.name}")
+                                }
+                            }.singleOrNull()
+                        }
+
+                        if (baseListFragmentPanelClassData == null ||
+                            handleDoubleClickMethodData == null ||
                             handleVideoEventMethodData == null ||
                             getCurrentAwemeMethodData == null ||
                             onVideoPlayerEventMethodData == null ||
                             handleBigDiggViewClickMethodData == null ||
-                            handlePauseMethodData == null
+                            handlePauseMethodData == null ||
+                            canPlayOnVideoReadyMethodData == null ||
+                            mPlayStateHelperFieldData == null
                         ) {
-                            if (baseListFragmentPanelClassData == null) YLog.error("$TAG: BaseListFragmentPanel class not found")
-                            if (handleDoubleClickMethodData == null) YLog.error("$TAG: handleDoubleClick not found")
-                            if (handleVideoEventMethodData == null) YLog.error("$TAG: handleVideoEvent not found")
-                            if (getCurrentAwemeMethodData == null) YLog.error("$TAG: getCurrentAweme not found")
-                            if (onVideoPlayerEventMethodData == null) YLog.error("$TAG: onVideoPlayerEvent not found")
-                            if (handleBigDiggViewClickMethodData == null) YLog.error("$TAG: handleBigDiggViewClick not found")
-                            if (handlePauseMethodData == null) YLog.error("$TAG: handlePause not found")
+                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
                             return@baseListFragmentPanel
                         }
 
@@ -3251,6 +3331,16 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                                 values.addAll(handlePauseMethodData.paramTypeNames)
                             }
                         }
+                        canPlayOnVideoReady = method {
+                            name = canPlayOnVideoReadyMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(canPlayOnVideoReadyMethodData.paramTypeNames)
+                            }
+                        }
+                        mPlayStateHelper = field {
+                            name = mPlayStateHelperFieldData.name
+                        }
 
                         this@apply.videoPlayerStatus = videoPlayerStatus {
                             runCatching {
@@ -3259,7 +3349,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                                     bridge.findField {
                                         searchClasses = listOf(it)
                                         matcher {
-                                            modifiers = Modifier.PUBLIC or Modifier.FINAL
+                                            modifiers = Modifier.PUBLIC
                                             type = "int"
                                         }
                                     }.singleOrNull()
@@ -3274,6 +3364,33 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                                 }
                                 code = field {
                                     name = codeFieldData.name
+                                }
+                            }.onFailure {
+                                YLog.error(populateFailedMsg.format(TAG), it)
+                            }
+                        }
+                        this@apply.playStatusHelper = playStatusHelper {
+                            runCatching {
+                                val playStatusHelperClassData = mPlayStateHelperFieldData.declaredClass
+                                val playStatusFieldData = playStatusHelperClassData.let {
+                                    bridge.findField {
+                                        searchClasses = listOf(it)
+                                        matcher {
+                                            modifiers = Modifier.PUBLIC
+                                            type = "int"
+                                        }
+                                    }.singleOrNull()
+                                }
+                                if (playStatusFieldData == null) {
+                                    YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
+                                    return@playStatusHelper
+                                }
+
+                                class_ = class_ {
+                                    name = playStatusHelperClassData.name
+                                }
+                                playStatus = field {
+                                    name = playStatusFieldData.name
                                 }
                             }.onFailure {
                                 YLog.error(populateFailedMsg.format(TAG), it)

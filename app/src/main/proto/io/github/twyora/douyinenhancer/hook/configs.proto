@@ -279,6 +279,8 @@ message BaseListFragmentPanel {
   optional Method on_video_player_event = 7;
   optional Method handle_big_digg_view_click = 8;
   optional Method handle_pause = 9;
+  optional Method can_play_on_video_ready = 10;
+  optional Field m_play_state_helper = 11;
 
   reserved 5, 6;
 }
@@ -418,6 +420,11 @@ message FeedAvatarPresenter {
   optional Method update_follow_view = 2;
 }
 
+message PlayStatusHelper {
+  optional Class class = 1;
+  optional Field play_status = 2;
+}
+
 message HookInfo {
   uint64 last_update_time = 1;
   uint32 module_version_code = 2;
@@ -476,6 +483,7 @@ message HookInfo {
   optional HomeTabDataSourceServer home_tab_data_source_server = 66;
   optional HomeTabDataSourceDefault home_tab_data_source_default = 67;
   optional FeedAvatarPresenter feed_avatar_presenter = 68;
+  optional PlayStatusHelper play_status_helper = 69;
 
   reserved 13, 18, 32, 35, 36, 38, 39, 40, 55, 64, 65;
 }
