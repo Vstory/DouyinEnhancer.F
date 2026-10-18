@@ -160,7 +160,12 @@ object CommentEmojiHooker : YukiBaseHooker() {
             packageInstance.commentImageSaveDownloadListener.onSuccessed()
         )?.hook {
             before {
-                val downloadInfo = args[0] ?: return@before
+                val downloadInfo = args.firstOrNull {
+                    packageInstance.downloadInfo.selfClass?.isInstance(it) == true
+                } ?: run {
+                    YLog.error("$TAG: downloadInfo not found in argument list")
+                    return@before
+                }
 
                 val dlUrl = downloadInfo.getFieldOrNull<String>(
                     packageInstance.downloadInfo.url()
