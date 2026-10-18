@@ -184,7 +184,10 @@ object CommentEmojiHooker : YukiBaseHooker() {
                 // Downloaded file save path
                 val sourcePath = downloadInfo.invokeMethodOrNull<String?>(
                     packageInstance.downloadInfo.getTargetFilePath()
-                ) ?: return@before
+                ) ?: run {
+                    YLog.error("$TAG: failed to get downloaded emoji file path")
+                    return@before
+                }
                 val sourceFileInfo = FileTypeDetector.detect(sourcePath)
                 YLog.info("$TAG: source MIME type: ${sourceFileInfo.mimeType}")
 
