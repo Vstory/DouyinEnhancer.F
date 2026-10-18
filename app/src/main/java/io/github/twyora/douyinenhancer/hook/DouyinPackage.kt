@@ -134,6 +134,8 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
     val homeTabDataSourceDefault = HomeTabDataSourceDefaultModule(hookInfo.homeTabDataSourceDefault, classLoader)
     val feedAvatarPresenter = FeedAvatarPresenterModule(hookInfo.feedAvatarPresenter, classLoader)
     val playStatusHelper = PlayStatusHelperModule(hookInfo.playStatusHelper, classLoader)
+    val heifImage = HeifImageModule(hookInfo.heifImage, classLoader)
+    val heifFrame = HeifFrameModule(hookInfo.heifFrame, classLoader)
 
     class CommentImageStructModule internal constructor(
         private val configs: Configs.CommentImageStruct,
@@ -1119,6 +1121,63 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
             const val PLAY_STATUS_PAUSED = 3
             // const val PLAY_STATUS_COMPLETED = 4
         }
+    }
+
+    class HeifImageModule internal constructor(private val configs: Configs.HeifImage, private val classLoader: ClassLoader) {
+        val selfClass by weak {
+            configs.class_.nameOrNull?.toClass(classLoader)
+        }
+
+        fun create() = Method(
+            configs.create.nameOrNull,
+            configs.create.parameters.valuesListOrNull
+        )
+
+        fun dispose() = Method(
+            configs.dispose.nameOrNull,
+            configs.dispose.parameters.valuesListOrNull
+        )
+
+        fun getWidth() = Method(
+            configs.getWidth.nameOrNull,
+            configs.getWidth.parameters.valuesListOrNull
+        )
+
+        fun getHeight() = Method(
+            configs.getHeight.nameOrNull,
+            configs.getHeight.parameters.valuesListOrNull
+        )
+
+        fun getFrame() = Method(
+            configs.getFrame.nameOrNull,
+            configs.getFrame.parameters.valuesListOrNull
+        )
+
+        fun getFrameCount() = Method(
+            configs.getFrameCount.nameOrNull,
+            configs.getFrameCount.parameters.valuesListOrNull
+        )
+
+        fun getFrameDurations() = Method(
+            configs.getFrameDurations.nameOrNull,
+            configs.getFrameDurations.parameters.valuesListOrNull
+        )
+    }
+
+    class HeifFrameModule internal constructor(private val configs: Configs.HeifFrame, private val classLoader: ClassLoader) {
+        val selfClass by weak {
+            configs.class_.nameOrNull?.toClass(classLoader)
+        }
+
+        fun renderFrame() = Method(
+            configs.renderFrame.nameOrNull,
+            configs.renderFrame.parameters.valuesListOrNull
+        )
+
+        fun dispose() = Method(
+            configs.dispose.nameOrNull,
+            configs.dispose.parameters.valuesListOrNull
+        )
     }
 
     companion object {
@@ -4173,6 +4232,211 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                             parameters = MethodKt.parameters {
                                 values.clear()
                                 values.addAll(updateFollowViewMethodData.paramTypeNames)
+                            }
+                        }
+                    }.onFailure {
+                        YLog.error(populateFailedMsg.format(TAG), it)
+                    }
+                }
+
+                heifImage = heifImage {
+                    runCatching {
+                        val heifImageClassData = bridge.getClassData(
+                            "com.bytedance.fresco.animatedheif.HeifImage"
+                        )
+                        val createMethodData = heifImageClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    name = "create"
+                                    modifiers = Modifier.PUBLIC or Modifier.STATIC
+                                    returnType = "com.bytedance.fresco.animatedheif.HeifImage"
+                                    params {
+                                        add("byte[]")
+                                    }
+                                }
+                            }.singleOrNull()
+                        }
+                        val disposeMethodData = heifImageClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    name = "dispose"
+                                    returnType = "void"
+                                }
+                            }.singleOrNull()
+                        }
+                        val getWidthMethodData = heifImageClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    name = "getWidth"
+                                    returnType = "int"
+                                }
+                            }.singleOrNull()
+                        }
+                        val getHeightMethodData = heifImageClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    name = "getHeight"
+                                    returnType = "int"
+                                }
+                            }.singleOrNull()
+                        }
+                        val getFrameMethodData = heifImageClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    name = "getFrame"
+                                    returnType = "com.bytedance.fresco.animatedheif.HeifFrame"
+                                    params {
+                                        add("int")
+                                    }
+                                }
+                            }.singleOrNull()
+                        }
+                        val getFrameCountMethodData = heifImageClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    name = "getFrameCount"
+                                    returnType = "int"
+                                }
+                            }.singleOrNull()
+                        }
+                        val getFrameDurationsMethodData = heifImageClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    name = "getFrameDurations"
+                                    returnType = "int[]"
+                                }
+                            }.singleOrNull()
+                        }
+
+                        if (heifImageClassData == null ||
+                            createMethodData == null ||
+                            disposeMethodData == null ||
+                            getWidthMethodData == null ||
+                            getHeightMethodData == null ||
+                            getFrameMethodData == null ||
+                            getFrameCountMethodData == null ||
+                            getFrameDurationsMethodData == null
+                        ) {
+                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
+                            return@heifImage
+                        }
+
+                        class_ = class_ {
+                            name = heifImageClassData.name
+                        }
+                        create = method {
+                            name = createMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(createMethodData.paramTypeNames)
+                            }
+                        }
+                        dispose = method {
+                            name = disposeMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(disposeMethodData.paramTypeNames)
+                            }
+                        }
+                        getWidth = method {
+                            name = getWidthMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(getWidthMethodData.paramTypeNames)
+                            }
+                        }
+                        getHeight = method {
+                            name = getHeightMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(getHeightMethodData.paramTypeNames)
+                            }
+                        }
+                        getFrame = method {
+                            name = getFrameMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(getFrameMethodData.paramTypeNames)
+                            }
+                        }
+                        getFrameCount = method {
+                            name = getFrameCountMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(getFrameCountMethodData.paramTypeNames)
+                            }
+                        }
+                        getFrameDurations = method {
+                            name = getFrameDurationsMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(getFrameDurationsMethodData.paramTypeNames)
+                            }
+                        }
+                    }.onFailure {
+                        YLog.error(populateFailedMsg.format(TAG), it)
+                    }
+                }
+
+                heifFrame = heifFrame {
+                    runCatching {
+                        val heifFrameClassData = bridge.getClassData(
+                            "com.bytedance.fresco.animatedheif.HeifFrame"
+                        )
+                        val renderFrameMethodData = heifFrameClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    name = "renderFrame"
+                                    returnType = "void"
+                                    params {
+                                        add("int")
+                                        add("int")
+                                        add("android.graphics.Bitmap")
+                                    }
+                                }
+                            }.singleOrNull()
+                        }
+                        val disposeMethodData = heifFrameClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    name = "dispose"
+                                    returnType = "void"
+                                }
+                            }.singleOrNull()
+                        }
+
+                        if (heifFrameClassData == null ||
+                            renderFrameMethodData == null ||
+                            disposeMethodData == null
+                        ) {
+                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
+                            return@heifFrame
+                        }
+
+                        class_ = class_ {
+                            name = heifFrameClassData.name
+                        }
+                        renderFrame = method {
+                            name = renderFrameMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(renderFrameMethodData.paramTypeNames)
+                            }
+                        }
+                        dispose = method {
+                            name = disposeMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(disposeMethodData.paramTypeNames)
                             }
                         }
                     }.onFailure {

@@ -1,13 +1,9 @@
 package io.github.twyora.douyinenhancer.hook.comment
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.media.MediaExtractor
-import android.media.MediaFormat
-import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.os.Build
 import android.webkit.MimeTypeMap
+import androidx.core.graphics.createBitmap
 import com.highcapable.kavaref.extension.createInstance
 import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
@@ -27,7 +23,6 @@ import io.github.twyora.douyinenhancer.utils.resolveMethodOrNull
 import io.github.twyora.douyinenhancer.utils.setFieldOrNull
 import java.io.File
 import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.io.Sink
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
@@ -165,7 +160,12 @@ object CommentEmojiHooker : YukiBaseHooker() {
             packageInstance.commentImageSaveDownloadListener.onSuccessed()
         )?.hook {
             before {
-                val downloadInfo = args[0] ?: return@before
+                val downloadInfo = args.firstOrNull {
+                    packageInstance.downloadInfo.selfClass?.isInstance(it) == true
+                } ?: run {
+                    YLog.error("$TAG: downloadInfo not found in argument list")
+                    return@before
+                }
 
                 val dlUrl = downloadInfo.getFieldOrNull<String>(
                     packageInstance.downloadInfo.url()
@@ -184,7 +184,10 @@ object CommentEmojiHooker : YukiBaseHooker() {
                 // Downloaded file save path
                 val sourcePath = downloadInfo.invokeMethodOrNull<String?>(
                     packageInstance.downloadInfo.getTargetFilePath()
-                ) ?: return@before
+                ) ?: run {
+                    YLog.error("$TAG: failed to get downloaded emoji file path")
+                    return@before
+                }
                 val sourceFileInfo = FileTypeDetector.detect(sourcePath)
                 YLog.info("$TAG: source MIME type: ${sourceFileInfo.mimeType}")
 
@@ -392,141 +395,81 @@ object CommentEmojiHooker : YukiBaseHooker() {
     }
 
     private fun convertMedia2Gif(mediaPath: String, gifPath: String): Boolean {
-        var extractor: MediaExtractor? = null
-        var retriever: MediaMetadataRetriever? = null
-        var encoder: GifEncoder? = null
-        var sink: Sink? = null
+        val heifImage = packageInstance.heifImage.selfClass?.invokeStaticMethodOrNull<Any>(
+            packageInstance.heifImage.create(),
+            File(mediaPath).readBytes()
+        )
+        if (heifImage == null) {
+            YLog.error("$TAG: failed to create HeifImage from $mediaPath")
+            return false
+        }
 
         try {
-            // 1. Initialize MediaExtractor
-            extractor = MediaExtractor().apply {
-                setDataSource(mediaPath)
-            }
-
-            // Find the visual track
-            var trackIndex = -1
-            for (i in 0 until extractor.trackCount) {
-                val format = extractor.getTrackFormat(i)
-                val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
-                if (mime.startsWith("video/") || mime.startsWith("image/")) {
-                    if (verbose) {
-                        YLog.debug("$TAG: found visual track[$i], MIME: $mime")
-                    }
-                    trackIndex = i
-                    break
-                }
-            }
-
-            // If no track is found, we can't process it
-            if (trackIndex == -1) {
-                YLog.warn("$TAG: no video/image track found in $mediaPath")
+            val frameCount = heifImage.invokeMethodOrNull<Int>(
+                packageInstance.heifImage.getFrameCount()
+            ) ?: run {
+                YLog.error("$TAG: failed to get frame count")
                 return false
             }
-            extractor.selectTrack(trackIndex)
-
-            // 2. Iterate to fetch timestamps
-            val timestampsUs = mutableListOf<Long>()
-            while (true) {
-                val time = extractor.sampleTime
-                if (time < 0) {
-                    break // End of stream
-                }
-                timestampsUs.add(time)
-                extractor.advance()
+            val frameDuration = heifImage.invokeMethodOrNull<IntArray>(
+                packageInstance.heifImage.getFrameDurations()
+            ) ?: run {
+                YLog.error("$TAG: failed to get frame durations")
+                return false
             }
-
-            if (timestampsUs.isEmpty()) {
-                YLog.warn("$TAG: no timestamps extracted from $mediaPath")
+            val frameWidth = heifImage.invokeMethodOrNull<Int>(
+                packageInstance.heifImage.getWidth()
+            ) ?: run {
+                YLog.error("$TAG: failed to get frame width")
+                return false
+            }
+            val frameHeight = heifImage.invokeMethodOrNull<Int>(
+                packageInstance.heifImage.getHeight()
+            ) ?: run {
+                YLog.error("$TAG: failed to get frame height")
                 return false
             }
 
-            // 3. Initialize MediaMetadataRetriever
-            retriever = MediaMetadataRetriever()
-            retriever.setDataSource(mediaPath)
+            YLog.info("$TAG: decoding HeifImage ${frameWidth}x$frameHeight, $frameCount frame(s)")
 
-            // 4. Initialize gif.kt Multiplatform Encoder
-            val outPath = Path(gifPath)
-            sink = SystemFileSystem.sink(outPath).buffered()
-            encoder = GifEncoder(sink)
-
-            // 5. Process each frame
-            for (i in timestampsUs.indices) {
-                val currentUs = timestampsUs[i]
-
-                // Calculate delay: difference to next timestamp, duplicate the previous delta for the final frame
-                val nextUs = if (i + 1 < timestampsUs.size) {
-                    timestampsUs[i + 1]
-                } else {
-                    if (i > 0) {
-                        timestampsUs[i] + (timestampsUs[i] - timestampsUs[i - 1])
-                    } else {
-                        currentUs + 100_000L
-                    }
-                }
-
-                val delayMs = ((nextUs - currentUs) / 1000L).coerceAtLeast(10L)
-
-                // Extract frame
-                var bitmap: Bitmap? = null
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    runCatching {
-                        // Try by index for animated
-                        bitmap = retriever.getFrameAtIndex(i)
-                    }
-                }
-
-                // Fallback for static or if index retrieval fails
-                if (bitmap == null) {
-                    // If it's a single frame, getFrameAtTime(0) works reliably for HEIC
-                    bitmap = retriever.getFrameAtTime(
-                        currentUs,
-                        MediaMetadataRetriever.OPTION_CLOSEST
+            GifEncoder(SystemFileSystem.sink(Path(gifPath)).buffered()).use { gifEncoder ->
+                for (i in 0 until frameCount) {
+                    val heifFrame = heifImage.invokeMethodOrNull<Any>(
+                        packageInstance.heifImage.getFrame(),
+                        i
                     )
+                    if (heifFrame == null) {
+                        YLog.warn("$TAG: failed to get frame $i, skipping")
+                        continue
+                    }
+
+                    val frameBitmap = createBitmap(frameWidth, frameHeight)
+                    try {
+                        heifFrame.invokeMethodOnly(
+                            packageInstance.heifFrame.renderFrame(),
+                            frameWidth,
+                            frameHeight,
+                            frameBitmap
+                        )
+                        gifEncoder.writeFrame(frameBitmap, frameDuration[i].milliseconds)
+                    } catch (e: Exception) {
+                        YLog.error("$TAG: failed to render or write frame $i", e)
+                    } finally {
+                        heifFrame.invokeMethodOnly(
+                            packageInstance.heifFrame.dispose()
+                        )
+                        frameBitmap.recycle()
+                    }
                 }
-
-                if (bitmap == null) {
-                    continue
-                }
-
-                val width = bitmap.width
-                val height = bitmap.height
-                val pixels = IntArray(width * height)
-
-                // 6. Convert Bitmap to IntArray
-                bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
-                // 7. Write frame to GIF
-                encoder.writeFrame(pixels, width, height, delayMs.milliseconds)
-
-                bitmap.recycle()
             }
-
             return true
         } catch (e: Exception) {
             YLog.error("$TAG: convert media to gif failed", e)
             return false
         } finally {
-            // Enforce rigorous cleanup
-            runCatching {
-                extractor?.release()
-            }.onFailure {
-                YLog.error("$TAG: failed to release media extractor", it)
-            }
-            runCatching {
-                retriever?.release()
-            }.onFailure {
-                YLog.error("$TAG: failed to release media metadata retriever", it)
-            }
-            runCatching {
-                encoder?.close()
-            }.onFailure {
-                YLog.error("$TAG: failed to close gif encoder", it)
-            }
-            runCatching {
-                sink?.close()
-            }.onFailure {
-                YLog.error("$TAG: failed to close output sink", it)
-            }
+            heifImage.invokeMethodOnly(
+                packageInstance.heifImage.dispose()
+            )
         }
     }
 }
