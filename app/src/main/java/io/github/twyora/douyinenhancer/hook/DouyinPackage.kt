@@ -1123,10 +1123,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
         }
     }
 
-    class HeifImageModule internal constructor(
-        private val configs: Configs.HeifImage,
-        private val classLoader: ClassLoader
-    ) {
+    class HeifImageModule internal constructor(private val configs: Configs.HeifImage, private val classLoader: ClassLoader) {
         val selfClass by weak {
             configs.class_.nameOrNull?.toClass(classLoader)
         }
@@ -1167,10 +1164,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
         )
     }
 
-    class HeifFrameModule internal constructor(
-        private val configs: Configs.HeifFrame,
-        private val classLoader: ClassLoader
-    ) {
+    class HeifFrameModule internal constructor(private val configs: Configs.HeifFrame, private val classLoader: ClassLoader) {
         val selfClass by weak {
             configs.class_.nameOrNull?.toClass(classLoader)
         }

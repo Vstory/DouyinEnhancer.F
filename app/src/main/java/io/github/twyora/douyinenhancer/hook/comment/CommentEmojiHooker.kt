@@ -3,6 +3,7 @@ package io.github.twyora.douyinenhancer.hook.comment
 import android.content.Context
 import android.net.Uri
 import android.webkit.MimeTypeMap
+import androidx.core.graphics.createBitmap
 import com.highcapable.kavaref.extension.createInstance
 import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
@@ -25,7 +26,6 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
-import androidx.core.graphics.createBitmap
 
 @HookOnMainProcess
 object CommentEmojiHooker : YukiBaseHooker() {
@@ -430,7 +430,7 @@ object CommentEmojiHooker : YukiBaseHooker() {
                 return false
             }
 
-            YLog.info("$TAG: decoding HeifImage ${frameWidth}x${frameHeight}, $frameCount frame(s)")
+            YLog.info("$TAG: decoding HeifImage ${frameWidth}x$frameHeight, $frameCount frame(s)")
 
             GifEncoder(SystemFileSystem.sink(Path(gifPath)).buffered()).use { gifEncoder ->
                 for (i in 0 until frameCount) {
