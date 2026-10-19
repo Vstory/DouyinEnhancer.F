@@ -7,7 +7,7 @@ import com.highcapable.yukihookapi.hook.param.HookParam
 import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.hook.DouyinPackage
 import io.github.twyora.douyinenhancer.hook.HookOnMainProcess
-import io.github.twyora.douyinenhancer.utils.resolveMethodOrNull
+import io.github.twyora.douyinenhancer.utils.reflect.resolveMethodOrNull
 
 @HookOnMainProcess
 object HomeTopTabHooker : YukiBaseHooker() {

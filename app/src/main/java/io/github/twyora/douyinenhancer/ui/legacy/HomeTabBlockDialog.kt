@@ -16,8 +16,8 @@ import io.github.twyora.douyinenhancer.bridge.ModuleApp
 import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.config.gate.ConfigStateMode
 import io.github.twyora.douyinenhancer.config.kvstorage.FastKVStorage
-import io.github.twyora.douyinenhancer.utils.Field
-import io.github.twyora.douyinenhancer.utils.setFieldOrNull
+import io.github.twyora.douyinenhancer.utils.reflect.Field
+import io.github.twyora.douyinenhancer.utils.reflect.setFieldOrNull
 
 class HomeTabBlockDialog(context: Context) :
     AlertDialog.Builder(

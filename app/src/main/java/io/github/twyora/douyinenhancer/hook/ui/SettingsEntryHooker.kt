@@ -15,10 +15,10 @@ import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.hook.DouyinPackage
 import io.github.twyora.douyinenhancer.hook.HookOnMainProcess
 import io.github.twyora.douyinenhancer.ui.legacy.SettingsDialog
-import io.github.twyora.douyinenhancer.utils.getFieldOrNull
-import io.github.twyora.douyinenhancer.utils.invokeMethodOnly
-import io.github.twyora.douyinenhancer.utils.invokeMethodOrNull
-import io.github.twyora.douyinenhancer.utils.resolveMethodOrNull
+import io.github.twyora.douyinenhancer.utils.reflect.getFieldOrNull
+import io.github.twyora.douyinenhancer.utils.reflect.invokeMethodOnly
+import io.github.twyora.douyinenhancer.utils.reflect.invokeMethodOrNull
+import io.github.twyora.douyinenhancer.utils.reflect.resolveMethodOrNull
 
 @HookOnMainProcess
 object SettingsEntryHooker : YukiBaseHooker() {
