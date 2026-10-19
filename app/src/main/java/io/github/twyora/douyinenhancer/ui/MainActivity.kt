@@ -37,7 +37,7 @@ import io.github.twyora.douyinenhancer.ui.content.home.HomeContentUiActions
 import io.github.twyora.douyinenhancer.ui.content.home.HomeContentUiState
 import io.github.twyora.douyinenhancer.ui.content.home.HomeContentViewModel
 import io.github.twyora.douyinenhancer.ui.navigation.AppRoutes
-import io.github.twyora.douyinenhancer.utils.openUrl
+import io.github.twyora.douyinenhancer.utils.android.openUrl
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.onEach

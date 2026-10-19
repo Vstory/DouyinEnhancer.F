@@ -11,7 +11,7 @@ import io.github.twyora.douyinenhancer.R
 import io.github.twyora.douyinenhancer.bridge.ModuleApp
 import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.databinding.VerifyDialogBinding
-import io.github.twyora.douyinenhancer.utils.toast
+import io.github.twyora.douyinenhancer.utils.android.toast
 import java.util.Locale
 
 class VerifyDialog(context: Context) : AlertDialog.Builder(ContextThemeWrapper(context, R.style.MainTheme)) {

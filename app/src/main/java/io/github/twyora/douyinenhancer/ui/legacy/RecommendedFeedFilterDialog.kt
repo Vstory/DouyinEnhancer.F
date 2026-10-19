@@ -15,7 +15,7 @@ import io.github.twyora.douyinenhancer.bridge.ModuleApp
 import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.databinding.ItemInputWithDeleteBinding
 import io.github.twyora.douyinenhancer.databinding.RecommendedFeedFilterDialogBinding
-import io.github.twyora.douyinenhancer.utils.toast
+import io.github.twyora.douyinenhancer.utils.android.toast
 
 class RecommendedFeedFilterDialog(context: Context) : AlertDialog.Builder(ContextThemeWrapper(context, R.style.MainTheme)) {
     init {
