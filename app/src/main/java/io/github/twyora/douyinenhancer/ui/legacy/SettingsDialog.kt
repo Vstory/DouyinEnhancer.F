@@ -28,12 +28,12 @@ import io.github.twyora.douyinenhancer.config.provider.ModuleConfigProvider
 import io.github.twyora.douyinenhancer.constant.HookInfoFiles
 import io.github.twyora.douyinenhancer.constant.SignatureKeys
 import io.github.twyora.douyinenhancer.hook.comment.CommentAudioHooker.hook
-import io.github.twyora.douyinenhancer.utils.verifySha256RsaSignature
 import io.github.twyora.douyinenhancer.utils.reflect.Field
 import io.github.twyora.douyinenhancer.utils.reflect.Method
 import io.github.twyora.douyinenhancer.utils.reflect.resolveMethodOrNull
 import io.github.twyora.douyinenhancer.utils.reflect.setFieldOrNull
 import io.github.twyora.douyinenhancer.utils.android.toast
+import io.github.twyora.douyinenhancer.utils.crypto.verifySha256RsaSignature
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.net.URL
