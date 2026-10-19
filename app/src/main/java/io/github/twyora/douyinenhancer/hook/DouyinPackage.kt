@@ -19,10 +19,10 @@ import io.github.twyora.douyinenhancer.config.provider.ModuleConfigProvider
 import io.github.twyora.douyinenhancer.constant.HookInfoFiles
 import io.github.twyora.douyinenhancer.constant.SignatureKeys
 import io.github.twyora.douyinenhancer.generated.AppProperties
+import io.github.twyora.douyinenhancer.utils.crypto.verifySha256RsaSignature
 import io.github.twyora.douyinenhancer.utils.reflect.Field
 import io.github.twyora.douyinenhancer.utils.reflect.Method
 import io.github.twyora.douyinenhancer.utils.reflect.toClass
-import io.github.twyora.douyinenhancer.utils.crypto.verifySha256RsaSignature
 import io.github.twyora.douyinenhancer.utils.weak
 import java.io.ByteArrayInputStream
 import java.io.File
