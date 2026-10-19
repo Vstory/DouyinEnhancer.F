@@ -7,13 +7,13 @@ import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.hook.DouyinPackage
 import io.github.twyora.douyinenhancer.hook.HookOnMainProcess
-import io.github.twyora.douyinenhancer.utils.HookTransaction
-import io.github.twyora.douyinenhancer.utils.getFieldOrNull
-import io.github.twyora.douyinenhancer.utils.getStaticFieldOrNull
-import io.github.twyora.douyinenhancer.utils.invokeMethodOrNull
-import io.github.twyora.douyinenhancer.utils.invokeStaticMethodOrNull
-import io.github.twyora.douyinenhancer.utils.resolveMethodOrNull
-import io.github.twyora.douyinenhancer.utils.setFieldOrNull
+import io.github.twyora.douyinenhancer.utils.hook.HookTransaction
+import io.github.twyora.douyinenhancer.utils.reflect.getFieldOrNull
+import io.github.twyora.douyinenhancer.utils.reflect.getStaticFieldOrNull
+import io.github.twyora.douyinenhancer.utils.reflect.invokeMethodOrNull
+import io.github.twyora.douyinenhancer.utils.reflect.invokeStaticMethodOrNull
+import io.github.twyora.douyinenhancer.utils.reflect.resolveMethodOrNull
+import io.github.twyora.douyinenhancer.utils.reflect.setFieldOrNull
 
 @HookOnMainProcess
 object FeedDownloadHooker : YukiBaseHooker() {

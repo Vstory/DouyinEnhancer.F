@@ -1,4 +1,4 @@
-package io.github.twyora.douyinenhancer.utils
+package io.github.twyora.douyinenhancer.utils.reflect
 
 import com.highcapable.kavaref.KavaRef.Companion.resolve
 import com.highcapable.kavaref.extension.toClass as KavaRefExt_toClass

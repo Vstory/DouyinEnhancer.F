@@ -1,4 +1,4 @@
-package io.github.twyora.douyinenhancer.utils
+package io.github.twyora.douyinenhancer.utils.crypto
 
 import com.highcapable.yukihookapi.hook.log.YLog
 import java.io.InputStream

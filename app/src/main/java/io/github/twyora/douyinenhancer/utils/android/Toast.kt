@@ -1,4 +1,4 @@
-package io.github.twyora.douyinenhancer.utils
+package io.github.twyora.douyinenhancer.utils.android
 
 import android.content.Context
 import android.os.Handler
