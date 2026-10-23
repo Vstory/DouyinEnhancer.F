@@ -8,7 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.children
-import com.highcapable.yukihookapi.hook.factory.injectModuleAppResources
+import com.highcapable.yukihookapi.hook.factory.injectModuleResources
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.R
 import io.github.twyora.douyinenhancer.bridge.ModuleApp
@@ -249,7 +249,7 @@ class RecommendedFeedFilterDialog(context: Context) : AlertDialog.Builder(Contex
 
         fun show(context: Context) {
             runCatching {
-                context.injectModuleAppResources()
+                context.injectModuleResources()
                 RecommendedFeedFilterDialog(context).show()
             }.onFailure {
                 YLog.error("$TAG: failed to show recommended feed filter dialog", it)

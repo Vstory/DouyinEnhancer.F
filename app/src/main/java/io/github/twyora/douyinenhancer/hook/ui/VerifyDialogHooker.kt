@@ -1,6 +1,7 @@
 package io.github.twyora.douyinenhancer.hook.ui
 
 import android.app.Activity
+import com.highcapable.yukihookapi.extension.kavaref.hook
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -24,7 +25,7 @@ object VerifyDialogHooker : YukiBaseHooker() {
             packageInstance.mainActivity.onResume()
         )?.hook {
             after {
-                val activity = instance as? Activity ?: run {
+                val activity = instanceOrNull<Activity>() ?: run {
                     YLog.error("$TAG: ${instance::class.qualifiedName} is not an Activity")
                     return@after
                 }
@@ -40,12 +41,9 @@ object VerifyDialogHooker : YukiBaseHooker() {
                     }
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to show verify dialog on resume", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook for showing verify dialog on resume", throwable)
             }
         }
     }

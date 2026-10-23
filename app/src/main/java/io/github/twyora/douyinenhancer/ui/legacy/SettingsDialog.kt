@@ -8,15 +8,12 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.content.res.Configuration
 import android.os.Bundle
 import android.preference.Preference
 import android.preference.PreferenceCategory
 import android.preference.PreferenceFragment
 import android.preference.SwitchPreference
 import android.view.ContextThemeWrapper
-import android.view.View
-import android.widget.TextView
 import com.highcapable.yukihookapi.hook.factory.injectModuleAppResources
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.BuildConfig
@@ -27,12 +24,9 @@ import io.github.twyora.douyinenhancer.config.kvstorage.FastKVStorage
 import io.github.twyora.douyinenhancer.config.provider.ModuleConfigProvider
 import io.github.twyora.douyinenhancer.constant.HookInfoFiles
 import io.github.twyora.douyinenhancer.constant.SignatureKeys
-import io.github.twyora.douyinenhancer.hook.comment.CommentAudioHooker.hook
 import io.github.twyora.douyinenhancer.utils.android.toast
 import io.github.twyora.douyinenhancer.utils.crypto.verifySha256RsaSignature
 import io.github.twyora.douyinenhancer.utils.reflect.Field
-import io.github.twyora.douyinenhancer.utils.reflect.Method
-import io.github.twyora.douyinenhancer.utils.reflect.resolveMethodOrNull
 import io.github.twyora.douyinenhancer.utils.reflect.setFieldOrNull
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -499,38 +493,6 @@ class SettingsDialog(context: Context) :
         activity.fragmentManager.beginTransaction().add(prefsFragment, "Settings").commit()
         activity.fragmentManager.executePendingTransactions()
 
-        val inNightMode =
-            (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        val nightModeTextHookResult = if (inNightMode) {
-            if (verbose) {
-                YLog.debug("$TAG: night mode on, recoloring settings text white")
-            }
-            Preference::class.java.resolveMethodOrNull(
-                Method(name = "onBindView", parameters = null)
-            )?.hook {
-                after {
-                    val preference = instance as? Preference ?: run {
-                        YLog.error("$TAG: bound target ${instance::class.qualifiedName} not a Preference, skip recolor")
-                        return@after
-                    }
-                    if (preference is PreferenceCategory) {
-                        return@after
-                    }
-
-                    val view = args[0] as? View ?: run {
-                        YLog.error("$TAG: bound target ${instance::class.qualifiedName} has no view, skip recolor")
-                        return@after
-                    }
-                    view.findViewById<TextView>(android.R.id.title)
-                        ?.setTextColor(ModuleApp.instance.resources.getColor(R.color.white))
-                    view.findViewById<TextView>(android.R.id.summary)
-                        ?.setTextColor(ModuleApp.instance.resources.getColor(R.color.white_50))
-                }
-            }
-        } else {
-            null
-        }
-
         setView(prefsFragment.view)
         setTitle(ModuleApp.instance.resources.getString(R.string.settings_dialog_title))
         setNegativeButton(ModuleApp.instance.resources.getString(R.string.settings_dialog_back), null)
@@ -540,15 +502,11 @@ class SettingsDialog(context: Context) :
         setOnDismissListener {
             context.toast(ModuleApp.instance.resources.getString(R.string.restart_required))
             activity.fragmentManager.beginTransaction().remove(prefsFragment).commitAllowingStateLoss()
-            nightModeTextHookResult?.remove()
         }
     }
 
     companion object {
         private val TAG = this::class.simpleName
-
-        private val verbose
-            get() = !ConfigManager.module.verboseDisabled.value
 
         private const val EXPORT_CONFIG = 0
         private const val IMPORT_CONFIG = 1

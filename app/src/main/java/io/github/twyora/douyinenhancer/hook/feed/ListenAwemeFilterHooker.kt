@@ -1,6 +1,7 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
-import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
+import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -27,8 +28,8 @@ object ListenAwemeFilterHooker : YukiBaseHooker() {
         installBypassListenAwemeFilterHook()
     }
 
-    private fun installBypassListenAwemeFilterHook(): YukiMemberHookCreator.MemberHookCreator.Result? =
-        packageInstance.listenAwemeFilter.selfClass?.resolveMethodOrNull(
+    private fun installBypassListenAwemeFilterHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+        return packageInstance.listenAwemeFilter.selfClass?.resolveMethodOrNull(
             packageInstance.listenAwemeFilter.accept()
         )?.hook {
             after {
@@ -43,14 +44,12 @@ object ListenAwemeFilterHooker : YukiBaseHooker() {
                     )
                     YLog.debug("$TAG: bypassing listen aweme filter for aweme id: $awemeId")
                 }
-                resultTrue()
+                result = true
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to bypass aweme in filter", throwable)
             }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook for bypassing listen aweme filter", throwable)
-            }
         }
+    }
 }

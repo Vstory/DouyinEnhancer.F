@@ -2,7 +2,8 @@ package io.github.twyora.douyinenhancer.hook.ui
 
 import android.view.View
 import androidx.collection.ArraySet
-import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
+import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -33,12 +34,12 @@ object DanmakuViewHooker : YukiBaseHooker() {
         installBlockDanmakuContainerVisibilityChangeHook()
     }
 
-    private fun installAssignDanmakuViewIdHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installAssignDanmakuViewIdHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.danmakuView.selfClass?.resolveMethodOrNull(
             packageInstance.danmakuView.onAttachedToWindow()
         )?.hook {
             after {
-                val danmakuView = instance as? View ?: run {
+                val danmakuView = instanceOrNull<View>() ?: run {
                     YLog.error("$TAG: ${instance::class.qualifiedName} is not View")
                     return@after
                 }
@@ -56,17 +57,14 @@ object DanmakuViewHooker : YukiBaseHooker() {
                     danmakuViewIds.add(danmakuView.id)
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to assign danmaku view id", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook danmaku view id assignment", throwable)
             }
         }
     }
 
-    private fun installBlockDanmakuContainerVisibilityChangeHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installBlockDanmakuContainerVisibilityChangeHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.cleanModePresenter.selfClass?.resolveMethodOrNull(
             packageInstance.cleanModePresenter.manageViewVisibility()
         )?.hook {
@@ -89,14 +87,11 @@ object DanmakuViewHooker : YukiBaseHooker() {
                     "$TAG: ${managedView::class.qualifiedName}{id=0x${managedView.id.toString(16)}} is" +
                         " a danmaku view container; will intercept to block visibility state change"
                 )
-                resultNull()
+                result = null
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to block danmaku container visibility change", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook danmaku container visibility blocking", throwable)
             }
         }
     }

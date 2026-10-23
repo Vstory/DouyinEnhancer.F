@@ -1,6 +1,7 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
 import com.highcapable.kavaref.extension.createInstance
+import com.highcapable.yukihookapi.extension.kavaref.hook
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -58,12 +59,9 @@ object FeedDoubleTapOpenCommentHooker : YukiBaseHooker() {
                     openCommentPanelEvent
                 )
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to dispatch open-comment-panel event for current aweme", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook double-tap handle for opening comment panel", throwable)
             }
         }
     }

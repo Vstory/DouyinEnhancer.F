@@ -5,7 +5,7 @@ import android.content.ComponentName
 import android.content.pm.PackageManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.highcapable.yukihookapi.YukiHookAPI
+import com.highcapable.yukihookapi.YukiHook
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.BuildConfig
 import io.github.twyora.douyinenhancer.R
@@ -48,7 +48,7 @@ class HomeContentViewModel(application: Application) : AndroidViewModel(applicat
                     launcherIconHidden = getApplication<Application>().packageManager.getComponentEnabledSetting(
                         launcherAlias
                     ) == PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                    moduleActivationState = YukiHookAPI.Status.isModuleActive
+                    moduleActivationState = YukiHook.Status.isModuleActive
                 )
             }
             fetchUpdateInfo()?.let { updateInfo ->

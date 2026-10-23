@@ -1,7 +1,8 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
 import android.graphics.Bitmap
-import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
+import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -45,7 +46,7 @@ object FeedMultiImageHooker : YukiBaseHooker() {
         installDisableVEAddLiveVideoWaterMarkHook()
     }
 
-    private fun installInjectPlayUrlIntoImageDownloadHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installInjectPlayUrlIntoImageDownloadHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.downloadAction.selfClass?.resolveMethodOrNull(
             packageInstance.downloadAction.startDownload()
         )?.hook {
@@ -126,17 +127,14 @@ object FeedMultiImageHooker : YukiBaseHooker() {
                     }
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to inject play URL into image download", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook image download for injecting play URL", throwable)
             }
         }
     }
 
-    private fun installDisableSaveImageToVideoLocalWaterMaskHook(): YukiMemberHookCreator.MemberHookCreator.Result? =
+    private fun installDisableSaveImageToVideoLocalWaterMaskHook(): YukiHookCreator.ClassicMemberHooker.Handle? =
         packageInstance.abTestServiceImpl.selfClass?.resolveMethodOrNull(
             packageInstance.abTestServiceImpl.enableSaveImageToVideoLocalWaterMask()
         )?.hook {
@@ -144,18 +142,15 @@ object FeedMultiImageHooker : YukiBaseHooker() {
                 if (verbose) {
                     YLog.debug("$TAG: disabling local watermark for save-image-to-video")
                 }
-                resultFalse()
+                result = false
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to disable save-image-to-video local watermark", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook for disable save-image-to-video local watermark", throwable)
             }
         }
 
-    private fun installConvertVvicCoverImageToPngHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installConvertVvicCoverImageToPngHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.downloadLivePhotoExecutor.selfClass?.resolveMethodOrNull(
             packageInstance.downloadLivePhotoExecutor.encodeLivePhoto()
         )?.hook {
@@ -178,17 +173,14 @@ object FeedMultiImageHooker : YukiBaseHooker() {
                     }
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to convert vvic cover image to png", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook for converting vvic cover to png", throwable)
             }
         }
     }
 
-    private fun installDisableVEAddLiveVideoWaterMarkHook(): YukiMemberHookCreator.MemberHookCreator.Result? =
+    private fun installDisableVEAddLiveVideoWaterMarkHook(): YukiHookCreator.ClassicMemberHooker.Handle? =
         packageInstance.abTestServiceImpl.selfClass?.resolveMethodOrNull(
             packageInstance.abTestServiceImpl.enableVEAddLiveVideoWaterMark()
         )?.hook {
@@ -196,18 +188,15 @@ object FeedMultiImageHooker : YukiBaseHooker() {
                 if (verbose) {
                     YLog.debug("$TAG: disabling watermark for live video")
                 }
-                resultFalse()
+                result = false
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to disable ve-add-live-video-water-mark", throwable)
-            }
-            onHookingFailure {
-                YLog.error("$TAG: failed to hook for disabling ve-add-live-video-water-mark")
             }
         }
 
-    private fun installConvertVvicImageToPngHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installConvertVvicImageToPngHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.downLoadExecutor.selfClass?.resolveMethodOrNull(
             packageInstance.downLoadExecutor.execute()
         )?.hook {
@@ -229,17 +218,14 @@ object FeedMultiImageHooker : YukiBaseHooker() {
                     }
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to convert vvic image to png", throwable)
-            }
-            onHookingFailure {
-                YLog.error("$TAG: failed to hook download executor for converting vvic image to png")
             }
         }
     }
 
-    private fun installConvertSingleVvicImageToMp4Hook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installConvertSingleVvicImageToMp4Hook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.storyServiceImpl.selfClass?.resolveMethodOrNull(
             packageInstance.storyServiceImpl.convertImgToMp4()
         )?.hook {
@@ -261,17 +247,14 @@ object FeedMultiImageHooker : YukiBaseHooker() {
                     YLog.error("$TAG: failed to convert single vvic image to png in mp4 composer: $vvicImagePath")
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to convert single vvic image to png in mp4 composer", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook single image to mp4 composer", throwable)
             }
         }
     }
 
-    private fun installConvertMultiVvicImagesToMp4Hook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installConvertMultiVvicImagesToMp4Hook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.storyServiceImpl.selfClass?.resolveMethodOrNull(
             packageInstance.storyServiceImpl.convertSingleLivePhotoToMp4UseMusicUrl()
         )?.hook {
@@ -295,12 +278,9 @@ object FeedMultiImageHooker : YukiBaseHooker() {
                     }
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to convert multi vvic images to png in mp4 composer", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook multi image to mp4 composer", throwable)
             }
         }
     }

@@ -1,5 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
+import com.highcapable.yukihookapi.extension.kavaref.hook
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -30,14 +31,11 @@ object FeedDoubleTapDiggHooker : YukiBaseHooker() {
                 if (verbose) {
                     YLog.debug("$TAG: intercepting double-tap digg")
                 }
-                resultNull()
+                result = null
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to intercept double-tap digg", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook for intercepting double-tap digg", throwable)
             }
         }
     }

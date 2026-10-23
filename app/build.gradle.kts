@@ -6,7 +6,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    // 作为 Xposed 模块使用务必添加，其它情况可选
     alias(libs.plugins.ksp)
     alias(libs.plugins.protobuf)
     alias(libs.plugins.compose.compiler)
@@ -103,9 +102,6 @@ android {
     }
 
     packaging {
-        resources {
-            merges += "META-INF/yukihookapi_init"
-        }
         jniLibs {
             keepDebugSymbols += "**/libdexkit.so"
         }
@@ -172,6 +168,22 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
 
+    // ---------------------- HOOK ----------------------
+    platform(libs.yukihook.bom).apply {
+        implementation(this)
+        ksp(this)
+    }
+    implementation(libs.yukihook.core)
+    ksp(libs.yukihook.compiler)
+    implementation(libs.yukihook.extension.kavaref)
+    implementation(libs.yukihook.runtime.libxposed)
+    compileOnly(libs.libxposed.api)
+
+    implementation(platform(libs.kavaref.bom))
+    implementation(libs.kavaref.core)
+    implementation(libs.kavaref.android)
+    implementation(libs.kavaref.extension)
+
     // ------------------ 底层与工具库 ------------------
     implementation(libs.luckypray.dexkit)
     implementation(libs.gifkt)
@@ -181,17 +193,6 @@ dependencies {
     implementation(libs.protobuf.kotlin)
     implementation(libs.commons.collections4)
     implementation(libs.json.canonicalization)
-
-    // ---------------------- HOOK ----------------------
-    // 基础依赖
-    implementation(libs.yukihookapi.api)
-    // 推荐使用 KavaRef 作为核心反射 API
-    implementation(libs.kavaref.core)
-    implementation(libs.kavaref.extension)
-    // 作为 Xposed 模块使用务必添加，其它情况可选
-    compileOnly(libs.xposed.api)
-    // 作为 Xposed 模块使用务必添加，其它情况可选
-    ksp(libs.yukihookapi.ksp.xposed)
 
     // compose
     implementation(platform(libs.androidx.compose.bom))

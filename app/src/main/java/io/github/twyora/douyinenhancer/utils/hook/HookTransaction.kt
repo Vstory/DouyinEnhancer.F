@@ -1,11 +1,11 @@
 package io.github.twyora.douyinenhancer.utils.hook
 
-import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
+import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.log.YLog
 
 class HookTransaction(private val tag: String?) {
-    private val hookActions = mutableListOf<Pair<String, () -> YukiMemberHookCreator.MemberHookCreator.Result?>>()
-    private val hookResult = mutableListOf<YukiMemberHookCreator.MemberHookCreator.Result>()
+    private val hookActions = mutableListOf<Pair<String, () -> YukiHookCreator.ClassicMemberHooker.Handle?>>()
+    private val hookResult = mutableListOf<YukiHookCreator.ClassicMemberHooker.Handle>()
 
     private fun rollback() {
         hookResult.asReversed().forEachIndexed { index, result ->
@@ -26,7 +26,7 @@ class HookTransaction(private val tag: String?) {
         hookResult.clear()
     }
 
-    fun add(name: String, action: () -> YukiMemberHookCreator.MemberHookCreator.Result?) {
+    fun add(name: String, action: () -> YukiHookCreator.ClassicMemberHooker.Handle?) {
         hookActions.add(Pair(name, action))
     }
 

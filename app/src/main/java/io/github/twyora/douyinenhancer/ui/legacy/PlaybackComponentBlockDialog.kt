@@ -9,7 +9,7 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.preference.PreferenceFragment
 import android.view.ContextThemeWrapper
-import com.highcapable.yukihookapi.hook.factory.injectModuleAppResources
+import com.highcapable.yukihookapi.hook.factory.injectModuleResources
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.R
 import io.github.twyora.douyinenhancer.bridge.ModuleApp
@@ -64,7 +64,7 @@ class PlaybackComponentBlockDialog(context: Context) : AlertDialog.Builder(Conte
 
         fun show(context: Context) {
             runCatching {
-                context.injectModuleAppResources()
+                context.injectModuleResources()
                 PlaybackComponentBlockDialog(context).show()
             }.onFailure {
                 YLog.error("$TAG: failed to show playback component block dialog", it)
