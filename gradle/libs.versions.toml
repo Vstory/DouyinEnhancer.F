@@ -6,21 +6,17 @@ junitVersion = "1.3.0"
 espressoCore = "3.7.0"
 appcompat = "1.7.1"
 material = "1.14.0"
-yukihookapi = "1.3.2"
-ksp = "2.3.9"
-kavaref-core = "1.0.3"
-kavaref-extension = "1.0.3"
+ksp = "2.3.12"
 dexkit = "2.2.0"
 gifkt = "0.3.3"
 protobuf = "0.10.0"
 protobuf-lib = "4.35.1"
 spotless = "8.7.0"
 fastkv = "2.6.0"
-kotlinpoet = "2.3.0"
+kotlinpoet = "2.4.0"
 auto-service-annotations = "1.1.0"
 auto-service-ksp = "1.2.0"
-jetbrainsKotlinJvm = "2.2.10"
-ksp-symbol-processing-api = "2.3.6"
+jetbrainsKotlinJvm = "2.4.21"
 commonsCollections4 = "4.5.0"
 compose-bom = "2026.08.00"
 activity-compose = "1.13.0"
@@ -29,23 +25,27 @@ lifecycle-viewmodel-navigation3 = "2.11.0"
 lifecycle-runtime-compose = "2.11.0"
 java-json-canonicalization = "1.1"
 jgit = "7.8.0.202609011348-r"
+yukihook-bom = "1.5.0"
+kavaref-bom = "1.1.1"
+libxposed-api = "102.0.0"
 
 [libraries]
+kavaref-bom = { module = "com.highcapable.kavaref:kavaref-bom", version.ref = "kavaref-bom" }
+kavaref-core = { module = "com.highcapable.kavaref:kavaref-core" }
+kavaref-android = { module = "com.highcapable.kavaref:kavaref-android" }
+kavaref-extension = { module = "com.highcapable.kavaref:kavaref-extension" }
+yukihook-bom = { module = "com.highcapable.yukihookapi:yukihook-bom", version.ref = "yukihook-bom" }
+yukihook-core = { module = "com.highcapable.yukihookapi:yukihook-core" }
+yukihook-compiler = { module = "com.highcapable.yukihookapi:yukihook-compiler" }
+yukihook-extension-kavaref = { module = "com.highcapable.yukihookapi:yukihook-extension-kavaref" }
+yukihook-runtime-libxposed = { module = "com.highcapable.yukihookapi:yukihook-runtime-libxposed" }
+libxposed-api = { module = "io.github.libxposed:api", version.ref = "libxposed-api" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
-yukihookapi-api = { module = "com.highcapable.yukihookapi:api", version.ref = "yukihookapi" }
-# 作为 Xposed 模块使用务必添加，其它情况可选
-yukihookapi-ksp-xposed = { module = "com.highcapable.yukihookapi:ksp-xposed", version.ref = "yukihookapi" }
-# YukiHookAPI 1.3.0 版本后使用 KavaRef 作为核心反射 API
-# YukiHookAPI 不再绑定自身的反射 API，你可以开始尝试使用 KavaRef
-kavaref-core = { module = "com.highcapable.kavaref:kavaref-core", version.ref = "kavaref-core" }
-kavaref-extension = { module = "com.highcapable.kavaref:kavaref-extension", version.ref = "kavaref-extension" }
-# 作为 Xposed 模块使用务必添加，其它情况可选
-xposed-api = { module = "de.robv.android.xposed:api", version = "82" }
 luckypray-dexkit = { group = "org.luckypray", name = "dexkit", version.ref = "dexkit" }
 gifkt = { module = "com.shakster:gifkt", version.ref = "gifkt" }
 protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf-lib" }
@@ -57,7 +57,7 @@ kotlinpoet = { module = "com.squareup:kotlinpoet", version.ref = "kotlinpoet" }
 kotlinpoet-ksp = { module = "com.squareup:kotlinpoet-ksp", version.ref = "kotlinpoet" }
 auto-service-annotations = { module = "com.google.auto.service:auto-service-annotations", version.ref = "auto-service-annotations" }
 auto-service-ksp = { module = "dev.zacsweers.autoservice:auto-service-ksp", version.ref = "auto-service-ksp" }
-ksp-symbol-processing-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp-symbol-processing-api" }
+ksp-symbol-processing-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
 commons-collections4 = { group = "org.apache.commons", name = "commons-collections4", version.ref = "commonsCollections4" }
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
 androidx-compose-ui = { module = "androidx.compose.ui:ui" }
@@ -75,7 +75,6 @@ jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version.ref = "jgit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-# 作为 Xposed 模块使用务必添加，其它情况可选
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobuf" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
