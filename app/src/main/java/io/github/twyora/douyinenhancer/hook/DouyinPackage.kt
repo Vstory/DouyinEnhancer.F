@@ -1205,7 +1205,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                     context.packageName,
                     0
                 )
-                val hostAppVersionCode = hostAppPackageInfo.versionCode
+                val hostAppVersionCode = hostAppPackageInfo.longVersionCode.toInt()
 
                 val lastUpdateTime = maxOf(
                     hostAppPackageInfo.lastUpdateTime,
@@ -1394,7 +1394,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
             )
             moduleVersionCode = BuildConfig.VERSION_CODE
             moduleVersionName = BuildConfig.VERSION_NAME
-            hostVersionCode = hostAppPackageInfo.versionCode
+            hostVersionCode = hostAppPackageInfo.longVersionCode.toInt()
             generation = ConfigManager.module.hookInfoGeneration.value
 
             runCatching {
