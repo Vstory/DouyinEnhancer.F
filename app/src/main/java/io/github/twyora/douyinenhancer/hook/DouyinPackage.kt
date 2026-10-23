@@ -4,7 +4,6 @@
 
 package io.github.twyora.douyinenhancer.hook
 
-import android.app.AndroidAppHelper
 import android.content.Context
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
@@ -1203,7 +1202,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                 }
 
                 val hostAppPackageInfo = context.packageManager.getPackageInfo(
-                    AndroidAppHelper.currentPackageName(),
+                    context.packageName,
                     0
                 )
                 val hostAppVersionCode = hostAppPackageInfo.versionCode
@@ -1379,7 +1378,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
 
             val hostAppClassLoader = context.classLoader
             val hostAppPackageInfo = context.packageManager.getPackageInfo(
-                AndroidAppHelper.currentPackageName(),
+                context.packageName,
                 0
             )
 
@@ -3025,7 +3024,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                                 }
                             }
                         }.singleOrNull() ?: run {
-                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass.simpleName))
+                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
                             return@galleryShareHelper
                         }
 

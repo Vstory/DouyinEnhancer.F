@@ -1,5 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.comment
 
+import com.highcapable.yukihookapi.extension.kavaref.hook
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -38,12 +39,9 @@ object CommentImageHooker : YukiBaseHooker() {
                     result = originUrl
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to override download url with origin url", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook for overriding download url with origin url", throwable)
             }
         }
     }

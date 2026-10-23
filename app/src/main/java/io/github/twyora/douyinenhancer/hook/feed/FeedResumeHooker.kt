@@ -1,5 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
+import com.highcapable.yukihookapi.extension.kavaref.hook
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -40,14 +41,11 @@ object FeedResumeHooker : YukiBaseHooker() {
                     YLog.debug("$TAG: current play status is paused; intercept to prevent resume")
                 }
 
-                resultFalse()
+                result = false
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to intercept resume of video playback on surface created", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook for intercepting resume of video playback on surface created", throwable)
             }
         }
     }

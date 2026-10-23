@@ -1,5 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
+import com.highcapable.yukihookapi.extension.kavaref.hook
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -42,12 +43,9 @@ object FeedVideoHooker : YukiBaseHooker() {
                     result = playAddr
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to override download addr with play addr", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook for video using play addr to download", throwable)
             }
         }
     }

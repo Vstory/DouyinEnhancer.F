@@ -1,6 +1,7 @@
 package io.github.twyora.douyinenhancer.hook.ui
 
-import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
+import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -26,7 +27,7 @@ object FeedAvatarHooker : YukiBaseHooker() {
         installHideFollowButtonHook()
     }
 
-    private fun installHideFollowButtonHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installHideFollowButtonHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.feedAvatarPresenter.selfClass?.resolveMethodOrNull(
             packageInstance.feedAvatarPresenter.updateFollowView()
         )?.hook {
@@ -50,12 +51,9 @@ object FeedAvatarHooker : YukiBaseHooker() {
 
                 args[followStatusIndex] = DouyinPackage.UserModule.FOLLOW_STATUS_FOLLOWING
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to hide follow button", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook follow button hiding", throwable)
             }
         }
     }

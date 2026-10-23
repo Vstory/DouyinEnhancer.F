@@ -1,5 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
+import com.highcapable.yukihookapi.extension.kavaref.hook
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -53,12 +54,9 @@ object FeedReplayHooker : YukiBaseHooker() {
                     true
                 )
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to intercept feed auto-loop on playback completion", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook feed auto-loop on playback completion", throwable)
             }
         }
     }

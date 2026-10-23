@@ -1,6 +1,7 @@
 package io.github.twyora.douyinenhancer.hook.ui
 
-import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
+import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import com.highcapable.yukihookapi.hook.param.HookParam
@@ -57,35 +58,29 @@ object HomeTopTabHooker : YukiBaseHooker() {
         installRemoveTopTabItemsDefaultHook()
     }
 
-    private fun installRemoveTopTabItemsRemoteHook(): YukiMemberHookCreator.MemberHookCreator.Result? =
+    private fun installRemoveTopTabItemsRemoteHook(): YukiHookCreator.ClassicMemberHooker.Handle? =
         packageInstance.homeTabDataSourceServer.selfClass?.resolveMethodOrNull(
             packageInstance.homeTabDataSourceServer.getShowingTopTabIds()
         )?.hook {
             after {
-                this.run(pruneTopTabIds)
+                run(pruneTopTabIds)
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to remove blocklisted ids from top tab", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook top tab hiding", throwable)
             }
         }
 
-    private fun installRemoveTopTabItemsDefaultHook(): YukiMemberHookCreator.MemberHookCreator.Result? =
+    private fun installRemoveTopTabItemsDefaultHook(): YukiHookCreator.ClassicMemberHooker.Handle? =
         packageInstance.homeTabDataSourceDefault.selfClass?.resolveMethodOrNull(
             packageInstance.homeTabDataSourceDefault.getShowingTopTabIds()
         )?.hook {
             after {
-                this.run(pruneTopTabIds)
+                run(pruneTopTabIds)
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to remove blocklisted ids from default top tab", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook default top tab hiding", throwable)
             }
         }
 }

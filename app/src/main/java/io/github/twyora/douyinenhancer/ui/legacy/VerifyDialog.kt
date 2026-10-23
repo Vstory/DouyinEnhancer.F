@@ -4,7 +4,7 @@ import android.app.AlertDialog
 import android.content.Context
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
-import com.highcapable.yukihookapi.hook.factory.injectModuleAppResources
+import com.highcapable.yukihookapi.hook.factory.injectModuleResources
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.BuildConfig
 import io.github.twyora.douyinenhancer.R
@@ -58,7 +58,7 @@ class VerifyDialog(context: Context) : AlertDialog.Builder(ContextThemeWrapper(c
             }
 
             runCatching {
-                context.injectModuleAppResources()
+                context.injectModuleResources()
                 VerifyDialog(context).show()
             }.onFailure {
                 YLog.error("$TAG: failed to show VerifyDialog", it)

@@ -1,7 +1,8 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
 import com.highcapable.kavaref.extension.createInstance
-import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
+import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -45,7 +46,7 @@ object FeedDownloadHooker : YukiBaseHooker() {
         transaction.commit()
     }
 
-    private fun installForceActionStatusNormalHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installForceActionStatusNormalHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.absPermissionChecker.selfClass?.resolveMethodOrNull(
             packageInstance.absPermissionChecker.getActionCheckResult()
         )?.hook {
@@ -77,17 +78,14 @@ object FeedDownloadHooker : YukiBaseHooker() {
                     )
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to force feed download status to normal", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook action status check for forcing download allowed", throwable)
             }
         }
     }
 
-    private fun installOverrideAwemeDownloadStatusHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installOverrideAwemeDownloadStatusHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.galleryShareHelper.selfClass?.resolveMethodOrNull(
             packageInstance.galleryShareHelper.startDownload()
         )?.hook {
@@ -113,17 +111,14 @@ object FeedDownloadHooker : YukiBaseHooker() {
                     )
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to reset aweme download status", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook download action for resetting aweme status", throwable)
             }
         }
     }
 
-    private fun installOverridePrivacyVideoDownloadStatusHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installOverridePrivacyVideoDownloadStatusHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.sharePrivacyVideoApi.selfClass?.resolveMethodOrNull(
             packageInstance.sharePrivacyVideoApi.getDownloadStatus()
         )?.hook {
@@ -155,12 +150,9 @@ object FeedDownloadHooker : YukiBaseHooker() {
                 }
                 result = observable
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to bypass privacy video download status check", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook privacy video download status query", throwable)
             }
         }
     }

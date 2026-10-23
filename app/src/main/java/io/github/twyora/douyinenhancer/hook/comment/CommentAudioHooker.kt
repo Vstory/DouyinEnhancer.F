@@ -3,7 +3,8 @@ package io.github.twyora.douyinenhancer.hook.comment
 import android.content.Context
 import android.net.Uri
 import com.highcapable.kavaref.extension.createInstance
-import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
+import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -54,7 +55,8 @@ object CommentAudioHooker : YukiBaseHooker() {
         transaction.commit()
     }
 
-    private fun installForceSaveImageVisibleHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installForceSaveImageVisibleHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+        // if the comment contains audio, show the save image button
         return packageInstance.saveImageActionItem.selfClass?.resolveMethodOrNull(
             packageInstance.saveImageActionItem.isVisible()
         )?.hook {
@@ -75,20 +77,17 @@ object CommentAudioHooker : YukiBaseHooker() {
                     if (verbose) {
                         YLog.debug("$TAG: comment contains audio, showing save image button")
                     }
-                    resultTrue()
+                    result = true
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to make save image button visible for audio", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook save image button for audio", throwable)
             }
         }
     }
 
-    private fun installAddSaveImageToWhiteListHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installAddSaveImageToWhiteListHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.commentLongPressWhiteListProvider.selfClass?.resolveMethodOrNull(
             packageInstance.commentLongPressWhiteListProvider.buildWhiteList()
         )?.hook {
@@ -114,17 +113,14 @@ object CommentAudioHooker : YukiBaseHooker() {
                     whiteList.add("save_image")
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to add \"save_image\" to white list", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook white list provider for audio", throwable)
             }
         }
     }
 
-    private fun installInjectAudioUrlOnSaveClickHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installInjectAudioUrlOnSaveClickHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.saveImageActionItem.selfClass?.resolveMethodOrNull(
             packageInstance.saveImageActionItem.onClick()
         )?.hook {
@@ -170,17 +166,14 @@ object CommentAudioHooker : YukiBaseHooker() {
                     YLog.debug("$TAG: injected ${audioUrls.size} audio URL(s) into comment")
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to inject audio URLs into save image download pipeline", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook save image download pipeline for audio", throwable)
             }
         }
     }
 
-    private fun installSaveDownloadedAudioHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installSaveDownloadedAudioHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.commentImageSaveDownloadListener.selfClass?.resolveMethodOrNull(
             packageInstance.commentImageSaveDownloadListener.onSuccessed()
         )?.hook {
@@ -264,14 +257,11 @@ object CommentAudioHooker : YukiBaseHooker() {
                     copyState
                 )
 
-                resultNull()
+                result = null
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to save downloaded audio to media store", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook audio download completion callback", throwable)
             }
         }
     }

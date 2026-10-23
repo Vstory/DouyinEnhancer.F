@@ -1,6 +1,8 @@
 package io.github.twyora.douyinenhancer.utils.reflect
 
 import com.highcapable.kavaref.KavaRef.Companion.resolve
+import com.highcapable.kavaref.extension.ArrayClass
+import com.highcapable.kavaref.extension.classOf
 import com.highcapable.kavaref.extension.toClass as KavaRefExt_toClass
 import com.highcapable.kavaref.resolver.FieldResolver
 import com.highcapable.kavaref.resolver.MethodResolver
@@ -15,21 +17,21 @@ data class Method(val name: String?, val parameters: List<String>?)
 fun String.toClass(loader: ClassLoader? = null, initialize: Boolean = false): Class<*> {
     // KavaRef's toClass doesn't support primitive types and JVM descriptors, manually handle them here
     return when (this) {
-        "I", "int" -> Int::class.javaPrimitiveType!!
+        "I", "int" -> classOf<Int>()
 
-        "Z", "boolean" -> Boolean::class.javaPrimitiveType!!
+        "Z", "boolean" -> classOf<Boolean>()
 
-        "B", "byte" -> Byte::class.javaPrimitiveType!!
+        "B", "byte" -> classOf<Byte>()
 
-        "C", "char" -> Char::class.javaPrimitiveType!!
+        "C", "char" -> classOf<Char>()
 
-        "S", "short" -> Short::class.javaPrimitiveType!!
+        "S", "short" -> classOf<Short>()
 
-        "J", "long" -> Long::class.javaPrimitiveType!!
+        "J", "long" -> classOf<Long>()
 
-        "F", "float" -> Float::class.javaPrimitiveType!!
+        "F", "float" -> classOf<Float>()
 
-        "D", "double" -> Double::class.javaPrimitiveType!!
+        "D", "double" -> classOf<Double>()
 
         "V", "void" -> Void.TYPE
 

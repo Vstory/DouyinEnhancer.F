@@ -6,9 +6,10 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import com.highcapable.kavaref.extension.createInstance
-import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
+import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
-import com.highcapable.yukihookapi.hook.factory.injectModuleAppResources
+import com.highcapable.yukihookapi.hook.factory.injectModuleResources
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.R
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -37,12 +38,12 @@ object SettingsEntryHooker : YukiBaseHooker() {
         installIncomingStartSettingsIntentHook()
     }
 
-    private fun installModuleSettingsEntryHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installModuleSettingsEntryHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.douYinSettingNewVersionActivity.selfClass?.resolveMethodOrNull(
             packageInstance.douYinSettingNewVersionActivity.onResume()
         )?.hook {
             after {
-                val activity = instance as? Activity ?: run {
+                val activity = instanceOrNull<Activity>() ?: run {
                     YLog.error("$TAG: ${instance::class.qualifiedName} is not an Activity")
                     return@after
                 }
@@ -72,10 +73,10 @@ object SettingsEntryHooker : YukiBaseHooker() {
                     id = View.generateViewId()
                 }
                 // ensure the host app can find the module settings icon
-                activity.injectModuleAppResources()
+                activity.injectModuleResources()
                 moduleSettingsCommonItemView.invokeMethodOnly(
                     packageInstance.commonItemView.setLeftText(),
-                    moduleAppResources.getString(R.string.app_name)
+                    module.resources.getString(R.string.app_name)
                 )
                 moduleSettingsCommonItemView.invokeMethodOnly(
                     packageInstance.commonItemView.setLeftIcon(),
@@ -112,22 +113,19 @@ object SettingsEntryHooker : YukiBaseHooker() {
                     0
                 )
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to inject module settings entry", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook for injecting module settings entry", throwable)
             }
         }
     }
 
-    private fun installAboutAwemeLongClickOpenSettingsHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installAboutAwemeLongClickOpenSettingsHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.douYinSettingNewVersionActivity.selfClass?.resolveMethodOrNull(
             packageInstance.douYinSettingNewVersionActivity.onResume()
         )?.hook {
             after {
-                val activity = instance as? Activity ?: run {
+                val activity = instanceOrNull<Activity>() ?: run {
                     YLog.error("$TAG: ${instance::class.qualifiedName} is not an Activity")
                     return@after
                 }
@@ -152,22 +150,19 @@ object SettingsEntryHooker : YukiBaseHooker() {
                     true
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to attach long click to open settings", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook for attaching long click to open settings", throwable)
             }
         }
     }
 
-    private fun installLaunchStartSettingsIntentHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installLaunchStartSettingsIntentHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.mainActivity.selfClass?.resolveMethodOrNull(
             packageInstance.mainActivity.onResume()
         )?.hook {
             before {
-                val activity = instance as? Activity ?: return@before
+                val activity = instanceOrNull<Activity>() ?: return@before
 
                 val shouldStartSettings = activity.intent?.getBooleanExtra(
                     "douyinenhancer_start_settings",
@@ -186,22 +181,19 @@ object SettingsEntryHooker : YukiBaseHooker() {
                     }
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to show settings dialog on resume", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook for showing settings dialog on resume", throwable)
             }
         }
     }
 
-    private fun installIncomingStartSettingsIntentHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installIncomingStartSettingsIntentHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.mainActivity.selfClass?.resolveMethodOrNull(
             packageInstance.mainActivity.onNewIntent()
         )?.hook {
             before {
-                val activity = instance as? Activity ?: return@before
+                val activity = instanceOrNull<Activity>() ?: return@before
                 val intent = args[0] as? Intent ?: return@before
 
                 val shouldStartSettings = intent.getBooleanExtra(
@@ -216,12 +208,9 @@ object SettingsEntryHooker : YukiBaseHooker() {
                     SettingsDialog.show(activity)
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to show settings dialog on new intent", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook for showing settings dialog on new intent", throwable)
             }
         }
     }

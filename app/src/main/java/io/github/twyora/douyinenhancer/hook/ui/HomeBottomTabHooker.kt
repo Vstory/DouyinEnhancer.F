@@ -1,6 +1,7 @@
 package io.github.twyora.douyinenhancer.hook.ui
 
-import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
+import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import com.highcapable.yukihookapi.hook.param.HookParam
@@ -53,35 +54,29 @@ object HomeBottomTabHooker : YukiBaseHooker() {
         installRemoveBottomTabItemsDefaultHook()
     }
 
-    private fun installRemoveBottomTabItemsRemoteHook(): YukiMemberHookCreator.MemberHookCreator.Result? =
+    private fun installRemoveBottomTabItemsRemoteHook(): YukiHookCreator.ClassicMemberHooker.Handle? =
         packageInstance.homeTabDataSourceServer.selfClass?.resolveMethodOrNull(
             packageInstance.homeTabDataSourceServer.getShowingBottomTabIds()
         )?.hook {
             after {
-                this.run(pruneBottomTabIds)
+                run(pruneBottomTabIds)
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to remove blocklisted ids from bottom tab", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook bottom tab hiding", throwable)
             }
         }
 
-    private fun installRemoveBottomTabItemsDefaultHook(): YukiMemberHookCreator.MemberHookCreator.Result? =
+    private fun installRemoveBottomTabItemsDefaultHook(): YukiHookCreator.ClassicMemberHooker.Handle? =
         packageInstance.homeTabDataSourceDefault.selfClass?.resolveMethodOrNull(
             packageInstance.homeTabDataSourceDefault.getShowingBottomTabIds()
         )?.hook {
             after {
                 this.run(pruneBottomTabIds)
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to remove blocklisted ids from default bottom tab", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook default bottom tab hiding", throwable)
             }
         }
 }

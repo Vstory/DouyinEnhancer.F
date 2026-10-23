@@ -5,7 +5,8 @@ import android.net.Uri
 import android.webkit.MimeTypeMap
 import androidx.core.graphics.createBitmap
 import com.highcapable.kavaref.extension.createInstance
-import com.highcapable.yukihookapi.hook.core.YukiMemberHookCreator
+import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import com.shakster.gifkt.GifEncoder
@@ -70,7 +71,7 @@ object CommentEmojiHooker : YukiBaseHooker() {
         transaction.commit()
     }
 
-    private fun installSaveEmojiToAlbumButtonHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installSaveEmojiToAlbumButtonHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.saveImageActionItem.selfClass?.resolveMethodOrNull(
             packageInstance.saveImageActionItem.isVisible()
         )?.hook {
@@ -96,20 +97,17 @@ object CommentEmojiHooker : YukiBaseHooker() {
                         YLog.debug("$TAG: emoji comment detected, forcing save image button visible")
                     }
                     // force the visibility check to return true — show save button
-                    resultTrue()
+                    result = true
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to make save image button visible for emoji", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook save image button for emoji", throwable)
             }
         }
     }
 
-    private fun installClickSaveEmojiToAlbumButtonCallbackHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installClickSaveEmojiToAlbumButtonCallbackHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.saveImageActionItem.selfClass?.resolveMethodOrNull(
             packageInstance.saveImageActionItem.onClick()
         )?.hook {
@@ -145,17 +143,14 @@ object CommentEmojiHooker : YukiBaseHooker() {
                     YLog.debug("$TAG: injected ${emojiUrls.size} emoji URL(s) into comment")
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to inject emoji URL(s) into save image download pipeline", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook save image download pipeline for emoji", throwable)
             }
         }
     }
 
-    private fun installEmojiDownloadedCallbackHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installEmojiDownloadedCallbackHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.commentImageSaveDownloadListener.selfClass?.resolveMethodOrNull(
             packageInstance.commentImageSaveDownloadListener.onSuccessed()
         )?.hook {
@@ -281,19 +276,16 @@ object CommentEmojiHooker : YukiBaseHooker() {
                 }
 
                 // Return null to skip original method execution
-                resultNull()
+                result = null
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to run emoji download completion callback", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook emoji download completion callback", throwable)
             }
         }
     }
 
-    private fun installCreateUriHook(): YukiMemberHookCreator.MemberHookCreator.Result? {
+    private fun installCreateUriHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
         return packageInstance.ugFileUtils.selfClass?.resolveMethodOrNull(
             packageInstance.ugFileUtils.createUri()
         )?.hook {
@@ -357,12 +349,9 @@ object CommentEmojiHooker : YukiBaseHooker() {
                     uriArr[0] = finalUri
                 }
             }
-        }?.result {
-            onConductFailure { _, throwable ->
+        }?.apply {
+            onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to build URI for image or video", throwable)
-            }
-            onHookingFailure { throwable ->
-                YLog.error("$TAG: failed to hook create URI for image or video", throwable)
             }
         }
     }

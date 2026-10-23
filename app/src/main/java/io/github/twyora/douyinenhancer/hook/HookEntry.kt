@@ -1,45 +1,42 @@
 package io.github.twyora.douyinenhancer.hook
 
-import com.highcapable.yukihookapi.YukiHookAPI
-import com.highcapable.yukihookapi.annotation.xposed.InjectYukiHookWithXposed
+import com.highcapable.yukihookapi.annotation.xposed.YukiHookLibXposedEntry
+import com.highcapable.yukihookapi.hook.factory.configure
 import com.highcapable.yukihookapi.hook.factory.encase
 import com.highcapable.yukihookapi.hook.log.YLog
-import com.highcapable.yukihookapi.hook.xposed.proxy.IYukiHookXposedInit
+import com.highcapable.yukihookapi.hook.xposed.YukiHookXposedModule
+import io.github.twyora.douyinenhancer.BuildConfig
 import io.github.twyora.douyinenhancer.bridge.ModuleApp
 import io.github.twyora.douyinenhancer.config.ConfigManager
 
-@InjectYukiHookWithXposed
-object HookEntry : IYukiHookXposedInit {
+@YukiHookLibXposedEntry(targetApiVersion = 102)
+object HookEntry : YukiHookXposedModule {
     private val TAG = this::class.simpleName
 
-    override fun onInit() = YukiHookAPI.configs {
-        debugLog {
+    override fun onInit() = configure {
+        logging {
             tag = "DouyinEnhancer"
+            enabled = true
+            recording = false
         }
-        isDebug = false
+        debug = BuildConfig.DEBUG
+        dataChannel = false
     }
 
     override fun onHook() = encase {
         loadApp(name = "com.ss.android.ugc.aweme") {
             withProcess(mainProcessName) {
-                onAppLifecycle {
-                    onCreate {
-                        // hook main process only; skip plugin sub-processes
-                        if (appInfo.sourceDir != this.applicationInfo.sourceDir) {
-                            return@onCreate
-                        }
+                withApplicationReady { application ->
+                    ModuleApp.init(this@withProcess)
+                    ConfigManager.init(application)
+                    // load cached HookInfo and run hooks when app context is available
+                    DouyinPackage.init(application.classLoader, application)
 
-                        ModuleApp.init(this@withProcess)
-                        ConfigManager.init(this)
-                        // load cached HookInfo and run hooks when app context is available
-                        DouyinPackage.init(this.classLoader, this)
+                    val verboseDisabled = ConfigManager.module.verboseDisabled.value
+                    YLog.info("$TAG: verbose log disabling is $verboseDisabled")
 
-                        val verboseDisabled = ConfigManager.module.verboseDisabled.value
-                        YLog.info("$TAG: verbose log disabling is $verboseDisabled")
-
-                        HookerRegistry.mainProcessHookers.forEach {
-                            loadHooker(it)
-                        }
+                    HookerRegistry.mainProcessHookers.forEach {
+                        loadHooker(it)
                     }
                 }
             }
