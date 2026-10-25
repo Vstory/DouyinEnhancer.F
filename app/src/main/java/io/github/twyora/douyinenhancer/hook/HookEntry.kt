@@ -9,7 +9,11 @@ import io.github.twyora.douyinenhancer.BuildConfig
 import io.github.twyora.douyinenhancer.bridge.ModuleApp
 import io.github.twyora.douyinenhancer.config.ConfigManager
 
-@YukiHookLibXposedEntry(targetApiVersion = 102)
+@YukiHookLibXposedEntry(
+    targetApiVersion = 102,
+    scope = ["com.ss.android.ugc.aweme"],
+    staticScope = true
+)
 object HookEntry : YukiHookXposedModule {
     private val TAG = this::class.simpleName
 
