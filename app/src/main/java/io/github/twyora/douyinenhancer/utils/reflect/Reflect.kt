@@ -148,35 +148,71 @@ fun <T : Any> T.resolveFieldOrNull(field: Field): FieldResolver<T>? {
     return thisClass.resolveFieldOrNull(field)?.of(this)
 }
 
-inline fun <reified T> Class<*>.invokeStaticMethod(method: Method, vararg args: Any?): T? = this.resolveMethod(method).invoke(*args) as T?
+@JvmName("invokeStaticMethodTyped")
+inline fun <reified T> Class<*>.invokeStaticMethod(method: Method, vararg args: Any?): T? = invokeStaticMethod(method, *args) as T?
 
+fun Class<*>.invokeStaticMethod(method: Method, vararg args: Any?): Any? = this.resolveMethod(method).invoke(*args)
+
+@JvmName("invokeStaticMethodOrNullTyped")
 inline fun <reified T> Class<*>.invokeStaticMethodOrNull(method: Method, vararg args: Any?): T? =
-    this.resolveMethodOrNull(method)?.invoke(*args) as? T
+    invokeStaticMethodOrNull(method, *args) as? T?
 
-inline fun <reified T> KClass<*>.invokeStaticMethod(method: Method, vararg args: Any?): T? = this.java.invokeStaticMethod(method, *args)
+fun Class<*>.invokeStaticMethodOrNull(method: Method, vararg args: Any?): Any? = this.resolveMethodOrNull(method)?.invoke(*args)
 
+@JvmName("invokeStaticMethodTyped")
+inline fun <reified T> KClass<*>.invokeStaticMethod(method: Method, vararg args: Any?): T? = invokeStaticMethod(method, *args) as T?
+
+fun KClass<*>.invokeStaticMethod(method: Method, vararg args: Any?): Any? = this.java.invokeStaticMethod(method, *args)
+
+@JvmName("invokeStaticMethodOrNullTyped")
 inline fun <reified T> KClass<*>.invokeStaticMethodOrNull(method: Method, vararg args: Any?): T? =
-    this.java.invokeStaticMethodOrNull(method, *args)
+    invokeStaticMethodOrNull(method, *args) as? T?
 
-inline fun <reified T> Any.invokeMethod(method: Method, vararg args: Any?): T? = this.resolveMethod(method).invoke(*args) as T?
+fun KClass<*>.invokeStaticMethodOrNull(method: Method, vararg args: Any?): Any? = this.java.invokeStaticMethodOrNull(method, *args)
 
-inline fun <reified T> Any.invokeMethodOrNull(method: Method, vararg args: Any?): T? = this.resolveMethodOrNull(method)?.invoke(*args) as? T
+@JvmName("invokeMethodTyped")
+inline fun <reified T> Any.invokeMethod(method: Method, vararg args: Any?): T? = invokeMethod(method, *args) as T?
+
+fun Any.invokeMethod(method: Method, vararg args: Any?): Any? = this.resolveMethod(method).invoke(*args)
+
+@JvmName("invokeMethodOrNullTyped")
+inline fun <reified T> Any.invokeMethodOrNull(method: Method, vararg args: Any?): T? = invokeMethodOrNull(method, *args) as? T?
+
+fun Any.invokeMethodOrNull(method: Method, vararg args: Any?): Any? = this.resolveMethodOrNull(method)?.invoke(*args)
 
 fun Any.invokeMethodOnly(method: Method, vararg args: Any?) {
-    this.invokeMethodOrNull<Any>(method, *args)
+    this.invokeMethodOrNull(method, *args)
 }
 
-inline fun <reified T> Class<*>.getStaticField(field: Field): T? = this.resolveField(field).get() as T?
+@JvmName("getStaticFieldTyped")
+inline fun <reified T> Class<*>.getStaticField(field: Field): T? = getStaticField(field) as T?
 
-inline fun <reified T> Class<*>.getStaticFieldOrNull(field: Field): T? = this.resolveFieldOrNull(field)?.get() as? T
+fun Class<*>.getStaticField(field: Field): Any? = this.resolveField(field).get()
 
-inline fun <reified T> KClass<*>.getStaticField(field: Field): T? = this.java.getStaticField(field)
+@JvmName("getStaticFieldOrNullTyped")
+inline fun <reified T> Class<*>.getStaticFieldOrNull(field: Field): T? = getStaticFieldOrNull(field) as? T?
 
-inline fun <reified T> KClass<*>.getStaticFieldOrNull(field: Field): T? = this.java.getStaticFieldOrNull(field)
+fun Class<*>.getStaticFieldOrNull(field: Field): Any? = this.resolveFieldOrNull(field)?.get()
 
-inline fun <reified T> Any.getField(field: Field): T? = this.resolveField(field).get() as T?
+@JvmName("getStaticFieldTyped")
+inline fun <reified T> KClass<*>.getStaticField(field: Field): T? = getStaticField(field) as T?
 
-inline fun <reified T> Any.getFieldOrNull(field: Field): T? = this.resolveFieldOrNull(field)?.get() as? T
+fun KClass<*>.getStaticField(field: Field): Any? = this.java.getStaticField(field)
+
+@JvmName("getStaticFieldOrNullTyped")
+inline fun <reified T> KClass<*>.getStaticFieldOrNull(field: Field): T? = getStaticFieldOrNull(field) as? T?
+
+fun KClass<*>.getStaticFieldOrNull(field: Field): Any? = this.java.getStaticFieldOrNull(field)
+
+@JvmName("getFieldTyped")
+inline fun <reified T> Any.getField(field: Field): T? = getField(field) as T?
+
+fun Any.getField(field: Field): Any? = this.resolveField(field).get()
+
+@JvmName("getFieldOrNullTyped")
+inline fun <reified T> Any.getFieldOrNull(field: Field): T? = getFieldOrNull(field) as? T?
+
+fun Any.getFieldOrNull(field: Field): Any? = this.resolveFieldOrNull(field)?.get()
 
 fun Class<*>.setStaticField(field: Field, value: Any?) = this.resolveField(field).set(value)
 
