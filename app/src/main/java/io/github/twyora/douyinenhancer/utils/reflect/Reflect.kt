@@ -216,12 +216,24 @@ fun Any.getFieldOrNull(field: Field): Any? = this.resolveFieldOrNull(field)?.get
 
 fun Class<*>.setStaticField(field: Field, value: Any?) = this.resolveField(field).set(value)
 
-fun Class<*>.setStaticFieldOrNull(field: Field, value: Any?) = this.resolveFieldOrNull(field)?.set(value)
+fun Class<*>.setStaticFieldOrNull(field: Field, value: Any?) = runCatching {
+    setStaticField(field, value)
+}.onFailure {
+    YLog.error("failed to set static field: ${this.name}.${field.name}", it)
+}.getOrNull()
 
 fun KClass<*>.setStaticField(field: Field, value: Any?) = this.java.setStaticField(field, value)
 
-fun KClass<*>.setStaticFieldOrNull(field: Field, value: Any?) = this.java.setStaticFieldOrNull(field, value)
+fun KClass<*>.setStaticFieldOrNull(field: Field, value: Any?) = runCatching {
+    setStaticField(field, value)
+}.onFailure {
+    YLog.error("failed to set static field: ${this.java.name}.${field.name}", it)
+}.getOrNull()
 
 fun Any.setField(field: Field, value: Any?) = this.resolveField(field).set(value)
 
-fun Any.setFieldOrNull(field: Field, value: Any?) = this.resolveFieldOrNull(field)?.set(value)
+fun Any.setFieldOrNull(field: Field, value: Any?) = runCatching {
+    setField(field, value)
+}.onFailure {
+    YLog.error("failed to set field: ${this.javaClass.name}.${field.name}", it)
+}.getOrNull()
