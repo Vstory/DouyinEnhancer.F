@@ -1,6 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -27,22 +27,23 @@ object FeedVideoHooker : YukiBaseHooker() {
 
         packageInstance.miscDownloadAddrUtil.selfClass?.resolveMethodOrNull(
             packageInstance.miscDownloadAddrUtil.getSuffixSceneDownloadAddr()
-        )?.hook {
-            before {
-                val aweme = args[0] ?: return@before
-
-                val playAddr = aweme.invokeMethodOrNull<Any>(
-                    packageInstance.aweme.getVideo()
-                )?.invokeMethodOrNull<Any>(
-                    packageInstance.video.getPlayAddr()
-                )
-                if (playAddr != null) {
-                    if (verbose) {
-                        YLog.debug("$TAG: play addr present, override result with play addr")
-                    }
-                    result = playAddr
-                }
+        )?.intercept {
+            val aweme = args.firstOrNull {
+                packageInstance.aweme.selfClass?.isInstance(it) == true
+            } ?: run {
+                YLog.error("$TAG: aweme not found in argument list")
+                return@intercept proceed()
             }
+
+            aweme.invokeMethodOrNull<Any>(
+                packageInstance.aweme.getVideo()
+            )?.invokeMethodOrNull<Any>(
+                packageInstance.video.getPlayAddr()
+            )?.also {
+                if (verbose) {
+                    YLog.debug("$TAG: play addr present, override result with play addr")
+                }
+            } ?: proceed()
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to override download addr with play addr", throwable)

@@ -1,7 +1,7 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
 import com.highcapable.kavaref.extension.createInstance
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
@@ -46,38 +46,37 @@ object FeedDownloadHooker : YukiBaseHooker() {
         transaction.commit()
     }
 
-    private fun installForceActionStatusNormalHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installForceActionStatusNormalHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.absPermissionChecker.selfClass?.resolveMethodOrNull(
             packageInstance.absPermissionChecker.getActionCheckResult()
-        )?.hook {
-            after {
-                val actionCheckResult = result ?: run {
-                    YLog.warn(
-                        "$TAG: action permission check result is null"
-                    )
-                    return@after
-                }
-                val actionStatus = actionCheckResult.getFieldOrNull<Any>(
-                    packageInstance.actionCheckResult.actionStatus()
-                ) ?: run {
-                    YLog.warn("$TAG: action status is null")
-                    return@after
-                }
-
-                val normalStatus = packageInstance.actionStatus.selfClass?.getStaticFieldOrNull<Any>(
-                    packageInstance.actionStatus.normal()
+        )?.intercept {
+            val actionCheckResult = proceed() ?: run {
+                YLog.warn(
+                    "$TAG: action permission check result is null"
                 )
-
-                if (actionStatus != normalStatus) {
-                    if (verbose) {
-                        YLog.debug("$TAG: forcing action status from $actionStatus to $normalStatus to allow download")
-                    }
-                    actionCheckResult.setFieldOrNull(
-                        packageInstance.actionCheckResult.actionStatus(),
-                        normalStatus
-                    )
-                }
+                return@intercept null
             }
+            val actionStatus = actionCheckResult.getFieldOrNull<Any>(
+                packageInstance.actionCheckResult.actionStatus()
+            ) ?: run {
+                YLog.warn("$TAG: action status is null")
+                return@intercept actionCheckResult
+            }
+
+            val normalStatus = packageInstance.actionStatus.selfClass?.getStaticFieldOrNull<Any>(
+                packageInstance.actionStatus.normal()
+            )
+
+            if (actionStatus != normalStatus) {
+                if (verbose) {
+                    YLog.debug("$TAG: forcing action status from $actionStatus to $normalStatus to allow download")
+                }
+                actionCheckResult.setFieldOrNull(
+                    packageInstance.actionCheckResult.actionStatus(),
+                    normalStatus
+                )
+            }
+            actionCheckResult
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to force feed download status to normal", throwable)
@@ -85,32 +84,36 @@ object FeedDownloadHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installOverrideAwemeDownloadStatusHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installOverrideAwemeDownloadStatusHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.galleryShareHelper.selfClass?.resolveMethodOrNull(
             packageInstance.galleryShareHelper.startDownload()
-        )?.hook {
-            before {
-                val aweme = args[0] ?: return@before
-                val downloadStatus = aweme.invokeMethodOrNull<Int>(
-                    packageInstance.aweme.getDownloadStatus()
-                )
-
+        )?.intercept {
+            val aweme = args.firstOrNull {
+                packageInstance.aweme.selfClass?.isInstance(it) == true
+            } ?: run {
+                YLog.error("$TAG: aweme not found in argument list")
+                return@intercept proceed()
+            }
+            val downloadStatus = aweme.invokeMethodOrNull<Int>(
+                packageInstance.aweme.getDownloadStatus()
+            )?.also {
                 if (verbose) {
-                    YLog.debug("$TAG: aweme download status: $downloadStatus")
-                }
-
-                if (downloadStatus != 0) {
-                    if (verbose) {
-                        YLog.debug("$TAG: resetting aweme download status from $downloadStatus to 0 to allow download")
-                    }
-                    aweme.getFieldOrNull<Any>(
-                        packageInstance.aweme.status()
-                    )?.setFieldOrNull(
-                        packageInstance.awemeStatus.downloadStatus(),
-                        0
-                    )
+                    YLog.debug("$TAG: aweme download status: $it")
                 }
             }
+
+            if (downloadStatus != 0) {
+                if (verbose) {
+                    YLog.debug("$TAG: resetting aweme download status from $downloadStatus to 0 to allow download")
+                }
+                aweme.getFieldOrNull<Any>(
+                    packageInstance.aweme.status()
+                )?.setFieldOrNull(
+                    packageInstance.awemeStatus.downloadStatus(),
+                    0
+                )
+            }
+            proceed()
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to reset aweme download status", throwable)
@@ -118,37 +121,37 @@ object FeedDownloadHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installOverridePrivacyVideoDownloadStatusHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installOverridePrivacyVideoDownloadStatusHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.sharePrivacyVideoApi.selfClass?.resolveMethodOrNull(
             packageInstance.sharePrivacyVideoApi.getDownloadStatus()
-        )?.hook {
-            before {
-                val itemId = args[0] as? String
-                if (verbose) {
-                    YLog.debug("$TAG: privacy video download status query aweme id: $itemId")
-                }
+        )?.intercept {
+            val itemId = args.firstNotNullOfOrNull {
+                it as? String
+            }
+            if (verbose) {
+                YLog.debug("$TAG: privacy video download status query aweme id: $itemId")
+            }
 
-                val response = packageInstance.sharePrivacyVideoApi.privacyVideoResponse.selfClass?.createInstance() ?: run {
-                    YLog.error("$TAG: failed to build the allowed-download response")
-                    return@before
-                }
-                response.setFieldOrNull(
+            val response = packageInstance.sharePrivacyVideoApi.privacyVideoResponse.selfClass?.createInstance()?.apply {
+                setFieldOrNull(
                     packageInstance.sharePrivacyVideoApi.privacyVideoResponse.msg(),
                     ""
                 )
-                response.setFieldOrNull(
+                setFieldOrNull(
                     packageInstance.sharePrivacyVideoApi.privacyVideoResponse.status(),
                     0
                 )
+            } ?: run {
+                YLog.error("$TAG: failed to build the allowed-download response")
+                return@intercept proceed()
+            }
 
-                val observable = packageInstance.rxObservable.selfClass?.invokeStaticMethodOrNull<Any>(
-                    packageInstance.rxObservable.just(),
-                    response
-                ) ?: run {
-                    YLog.error("$TAG: failed to warp the allowed-download response")
-                    return@before
-                }
-                result = observable
+            packageInstance.rxObservable.selfClass?.invokeStaticMethodOrNull<Any>(
+                packageInstance.rxObservable.just(),
+                response
+            ) ?: run {
+                YLog.error("$TAG: failed to warp the allowed-download response")
+                return@intercept proceed()
             }
         }?.apply {
             onCallbackFailure { _, throwable ->

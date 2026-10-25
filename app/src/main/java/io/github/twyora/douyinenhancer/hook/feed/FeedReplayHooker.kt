@@ -1,6 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -31,29 +31,33 @@ object FeedReplayHooker : YukiBaseHooker() {
         // I have no other good idea; pause the video manually here
         packageInstance.baseListFragmentPanel.selfClass?.resolveMethodOrNull(
             packageInstance.baseListFragmentPanel.onVideoPlayerEvent()
-        )?.hook {
-            after {
-                val status = args[0] ?: run {
-                    YLog.error("$TAG: video player event is null")
-                    return@after
-                }
-                val code = status.getFieldOrNull<Int>(
-                    packageInstance.videoPlayerStatus.code()
-                ) ?: run {
-                    YLog.error("$TAG: video player event code is null")
-                    return@after
-                }
+        )?.intercept {
+            val result = proceed()
 
-                if (code != DouyinPackage.VideoPlayerStatusModule.EVENT_PLAY_COMPLETED) {
-                    return@after
-                } else if (verbose) {
-                    YLog.debug("$TAG: pause when feed playback completes")
-                }
-                instance.invokeMethodOnly(
-                    packageInstance.baseListFragmentPanel.handlePause(),
-                    true
-                )
+            val status = args.firstOrNull {
+                packageInstance.videoPlayerStatus.selfClass?.isInstance(it) == true
+            } ?: run {
+                YLog.error("$TAG: video player status not found in argument list")
+                return@intercept result
             }
+            val code = status.getFieldOrNull<Int>(
+                packageInstance.videoPlayerStatus.code()
+            ) ?: run {
+                YLog.error("$TAG: video player event code is null")
+                return@intercept result
+            }
+
+            if (code != DouyinPackage.VideoPlayerStatusModule.EVENT_PLAY_COMPLETED) {
+                return@intercept result
+            } else if (verbose) {
+                YLog.debug("$TAG: pause when feed playback completes")
+            }
+            instance.invokeMethodOnly(
+                packageInstance.baseListFragmentPanel.handlePause(),
+                true
+            )
+
+            result
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to intercept feed auto-loop on playback completion", throwable)

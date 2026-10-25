@@ -1,10 +1,10 @@
 package io.github.twyora.douyinenhancer.hook.ui
 
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
-import com.highcapable.yukihookapi.hook.param.HookParam
+import com.highcapable.yukihookapi.hook.param.HookChain
 import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.hook.DouyinPackage
 import io.github.twyora.douyinenhancer.hook.HookOnMainProcess
@@ -33,14 +33,14 @@ object HomeBottomTabHooker : YukiBaseHooker() {
         }.toSet()
     }
 
-    private val pruneBottomTabIds: HookParam.() -> Unit = pruneBottom@{
-        val bottomTabIds = result as? MutableList<*> ?: run {
+    private val pruneBottomTabIds: HookChain.() -> Any? = pruneBottom@{
+        proceed<MutableList<*>>()?.apply {
+            removeIf {
+                it in tabIdsToRemove
+            }
+        } ?: run {
             YLog.error("$TAG: bottom tab ids is not a mutable list")
-            return@pruneBottom
-        }
-
-        bottomTabIds.removeIf {
-            it in tabIdsToRemove
+            return@pruneBottom null
         }
     }
 
@@ -54,26 +54,22 @@ object HomeBottomTabHooker : YukiBaseHooker() {
         installRemoveBottomTabItemsDefaultHook()
     }
 
-    private fun installRemoveBottomTabItemsRemoteHook(): YukiHookCreator.ClassicMemberHooker.Handle? =
+    private fun installRemoveBottomTabItemsRemoteHook(): YukiHookCreator.MemberHooker<*>.Handle? =
         packageInstance.homeTabDataSourceServer.selfClass?.resolveMethodOrNull(
             packageInstance.homeTabDataSourceServer.getShowingBottomTabIds()
-        )?.hook {
-            after {
-                run(pruneBottomTabIds)
-            }
+        )?.intercept {
+            run(pruneBottomTabIds)
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to remove blocklisted ids from bottom tab", throwable)
             }
         }
 
-    private fun installRemoveBottomTabItemsDefaultHook(): YukiHookCreator.ClassicMemberHooker.Handle? =
+    private fun installRemoveBottomTabItemsDefaultHook(): YukiHookCreator.MemberHooker<*>.Handle? =
         packageInstance.homeTabDataSourceDefault.selfClass?.resolveMethodOrNull(
             packageInstance.homeTabDataSourceDefault.getShowingBottomTabIds()
-        )?.hook {
-            after {
-                this.run(pruneBottomTabIds)
-            }
+        )?.intercept {
+            run(pruneBottomTabIds)
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to remove blocklisted ids from default bottom tab", throwable)

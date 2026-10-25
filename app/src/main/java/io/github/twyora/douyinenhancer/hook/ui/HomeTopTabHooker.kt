@@ -1,10 +1,10 @@
 package io.github.twyora.douyinenhancer.hook.ui
 
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
-import com.highcapable.yukihookapi.hook.param.HookParam
+import com.highcapable.yukihookapi.hook.param.HookChain
 import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.hook.DouyinPackage
 import io.github.twyora.douyinenhancer.hook.HookOnMainProcess
@@ -37,14 +37,14 @@ object HomeTopTabHooker : YukiBaseHooker() {
         }.toSet()
     }
 
-    private val pruneTopTabIds: HookParam.() -> Unit = pruneTop@{
-        val topTabIds = result as? MutableList<*> ?: run {
+    private val pruneTopTabIds: HookChain.() -> Any? = pruneTop@{
+        proceed<MutableList<*>>()?.apply {
+            removeIf {
+                it in tabIdsToRemove
+            }
+        } ?: run {
             YLog.error("$TAG: top tab ids is not a mutable list")
-            return@pruneTop
-        }
-
-        topTabIds.removeIf {
-            it in tabIdsToRemove
+            return@pruneTop null
         }
     }
 
@@ -58,26 +58,22 @@ object HomeTopTabHooker : YukiBaseHooker() {
         installRemoveTopTabItemsDefaultHook()
     }
 
-    private fun installRemoveTopTabItemsRemoteHook(): YukiHookCreator.ClassicMemberHooker.Handle? =
+    private fun installRemoveTopTabItemsRemoteHook(): YukiHookCreator.MemberHooker<*>.Handle? =
         packageInstance.homeTabDataSourceServer.selfClass?.resolveMethodOrNull(
             packageInstance.homeTabDataSourceServer.getShowingTopTabIds()
-        )?.hook {
-            after {
-                run(pruneTopTabIds)
-            }
+        )?.intercept {
+            run(pruneTopTabIds)
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to remove blocklisted ids from top tab", throwable)
             }
         }
 
-    private fun installRemoveTopTabItemsDefaultHook(): YukiHookCreator.ClassicMemberHooker.Handle? =
+    private fun installRemoveTopTabItemsDefaultHook(): YukiHookCreator.MemberHooker<*>.Handle? =
         packageInstance.homeTabDataSourceDefault.selfClass?.resolveMethodOrNull(
             packageInstance.homeTabDataSourceDefault.getShowingTopTabIds()
-        )?.hook {
-            after {
-                run(pruneTopTabIds)
-            }
+        )?.intercept {
+            run(pruneTopTabIds)
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to remove blocklisted ids from default top tab", throwable)

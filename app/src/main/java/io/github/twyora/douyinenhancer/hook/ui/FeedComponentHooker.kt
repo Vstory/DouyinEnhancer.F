@@ -1,6 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.ui
 
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
@@ -92,16 +92,12 @@ object FeedComponentHooker : YukiBaseHooker() {
         installPlaybackComponentBlockHook()
     }
 
-    private fun installPlaybackComponentBlockHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
-        return packageInstance.fluxComponentDataAction.selfClass?.resolveMethodOrNull(
+    private fun installPlaybackComponentBlockHook(): YukiHookCreator.MemberHooker<*>.Handle? =
+        packageInstance.fluxComponentDataAction.selfClass?.resolveMethodOrNull(
             packageInstance.fluxComponentDataAction.getSet()
-        )?.hook {
-            after {
-                val allowComponentSet = result as? MutableSet<*> ?: run {
-                    YLog.error("$TAG: ${result?.javaClass?.name} is not a mutable set")
-                    return@after
-                }
-                allowComponentSet.removeAll(
+        )?.intercept {
+            proceed<MutableSet<*>>()?.apply {
+                removeAll(
                     blockComponentIds.mapNotNull { field ->
                         packageInstance.fluxComponentId.selfClass?.getStaticField(field)
                     }.toSet()
@@ -112,5 +108,4 @@ object FeedComponentHooker : YukiBaseHooker() {
                 YLog.error("$TAG: failed to block playback components", throwable)
             }
         }
-    }
 }

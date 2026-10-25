@@ -1,7 +1,7 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
 import android.graphics.Bitmap
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
@@ -28,6 +28,8 @@ object FeedMultiImageHooker : YukiBaseHooker() {
     private val verbose
         get() = !ConfigManager.module.verboseDisabled.value
 
+    private val seenAwemeIds = CircularFifoQueue<String>(5)
+
     override fun onHook() {
         if (!ConfigManager.save.feedMultiImageRemoveWatermark.value) {
             YLog.info("$TAG: remove watermark is disabled, skipping hook")
@@ -46,87 +48,88 @@ object FeedMultiImageHooker : YukiBaseHooker() {
         installDisableVEAddLiveVideoWaterMarkHook()
     }
 
-    private fun installInjectPlayUrlIntoImageDownloadHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installInjectPlayUrlIntoImageDownloadHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.downloadAction.selfClass?.resolveMethodOrNull(
             packageInstance.downloadAction.startDownload()
-        )?.hook {
-            val seenAwemeIds = CircularFifoQueue<String>(5)
-            before {
-                val aweme = instance.getFieldOrNull<Any>(
-                    packageInstance.downloadAction.aweme()
-                ) ?: return@before
-                if (aweme.invokeMethodOrNull<Boolean>(
-                        packageInstance.aweme.isMultiImage()
-                    ) == false
-                ) {
-                    return@before
+        )?.intercept {
+            val aweme = instance.getFieldOrNull<Any>(
+                packageInstance.downloadAction.aweme()
+            ) ?: run {
+                YLog.error("$TAG: aweme not found in download action")
+                return@intercept proceed()
+            }
+            if (aweme.invokeMethodOrNull<Boolean>(
+                    packageInstance.aweme.isMultiImage()
+                ) == false
+            ) {
+                return@intercept proceed()
+            }
+
+            // skip if this post was already processed
+            aweme.invokeMethodOrNull<String>(
+                packageInstance.aweme.getAid()
+            )?.let {
+                if (seenAwemeIds.contains(it)) {
+                    return@intercept proceed()
+                }
+                seenAwemeIds.add(it)
+            }
+
+            val awemeImages = aweme.getFieldOrNull<List<*>>(
+                packageInstance.aweme.images()
+            ).takeIf {
+                !it.isNullOrEmpty()
+            } ?: run {
+                YLog.error("$TAG: aweme.images is null or empty")
+                return@intercept proceed()
+            }
+
+            awemeImages.forEach { imageStruct ->
+                if (imageStruct == null) {
+                    return@forEach
                 }
 
-                // skip if this post was already processed
-                aweme.invokeMethodOrNull<String>(
-                    packageInstance.aweme.getAid()
-                )?.let {
-                    if (seenAwemeIds.contains(it)) {
-                        return@before
-                    }
-                    seenAwemeIds.add(it)
-                }
-
-                val awemeImages = aweme.getFieldOrNull<List<*>>(
-                    packageInstance.aweme.images()
+                // use the play URL as the image download URL
+                imageStruct.getFieldOrNull<List<*>>(
+                    packageInstance.imageUrlStruct.urlList()
                 ).takeIf {
                     !it.isNullOrEmpty()
+                }?.let {
+                    imageStruct.setFieldOrNull(
+                        packageInstance.imageUrlStruct.downloadUrlList(),
+                        it
+                    )
                 } ?: run {
-                    YLog.error("$TAG: aweme.images is null or empty")
-                    return@before
+                    YLog.warn("$TAG: image has no play URL, skipping watermark-free injection")
                 }
 
-                awemeImages.forEach { imageStruct ->
-                    if (imageStruct == null) {
-                        return@forEach
-                    }
-
-                    // use the play URL as the image download URL
-                    imageStruct.getFieldOrNull<List<*>>(
-                        packageInstance.imageUrlStruct.urlList()
-                    ).takeIf {
-                        !it.isNullOrEmpty()
-                    }?.let {
-                        imageStruct.setFieldOrNull(
-                            packageInstance.imageUrlStruct.downloadUrlList(),
-                            it
+                // also replace the video's download URL when the post has a video
+                imageStruct.getFieldOrNull<Any>(
+                    packageInstance.imageUrlStruct.video()
+                )?.let { video ->
+                    video.invokeMethodOrNull<Any>(
+                        packageInstance.video.getPlayAddr()
+                    )?.let { playAddr ->
+                        video.setFieldOrNull(
+                            packageInstance.video.downloadAddr(),
+                            playAddr
                         )
-                    } ?: run {
-                        YLog.warn("$TAG: image has no play URL, skipping watermark-free injection")
-                    }
-
-                    // also replace the video's download URL when the post has a video
-                    imageStruct.getFieldOrNull<Any>(
-                        packageInstance.imageUrlStruct.video()
-                    )?.let { video ->
-                        video.invokeMethodOrNull<Any>(
-                            packageInstance.video.getPlayAddr()
-                        )?.let { playAddr ->
-                            video.setFieldOrNull(
-                                packageInstance.video.downloadAddr(),
-                                playAddr
-                            )
-                            if (verbose) {
-                                YLog.debug("$TAG:play URL used as video download address")
-                            }
-                        }?.also {
-                            video.setFieldOrNull(
-                                packageInstance.video.hasWaterMark(),
-                                false
-                            )
-                            video.setFieldOrNull(
-                                packageInstance.video.hasSuffixWaterMark(),
-                                false
-                            )
+                        if (verbose) {
+                            YLog.debug("$TAG: play URL used as video download address")
                         }
+                    }?.also {
+                        video.setFieldOrNull(
+                            packageInstance.video.hasWaterMark(),
+                            false
+                        )
+                        video.setFieldOrNull(
+                            packageInstance.video.hasSuffixWaterMark(),
+                            false
+                        )
                     }
                 }
             }
+            proceed()
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to inject play URL into image download", throwable)
@@ -134,45 +137,47 @@ object FeedMultiImageHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installDisableSaveImageToVideoLocalWaterMaskHook(): YukiHookCreator.ClassicMemberHooker.Handle? =
+    private fun installDisableSaveImageToVideoLocalWaterMaskHook(): YukiHookCreator.MemberHooker<*>.Handle? =
         packageInstance.abTestServiceImpl.selfClass?.resolveMethodOrNull(
             packageInstance.abTestServiceImpl.enableSaveImageToVideoLocalWaterMask()
-        )?.hook {
-            before {
-                if (verbose) {
-                    YLog.debug("$TAG: disabling local watermark for save-image-to-video")
-                }
-                result = false
+        )?.intercept {
+            if (verbose) {
+                YLog.debug("$TAG: disabling local watermark for save-image-to-video")
             }
+            false
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to disable save-image-to-video local watermark", throwable)
             }
         }
 
-    private fun installConvertVvicCoverImageToPngHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installConvertVvicCoverImageToPngHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.downloadLivePhotoExecutor.selfClass?.resolveMethodOrNull(
             packageInstance.downloadLivePhotoExecutor.encodeLivePhoto()
-        )?.hook {
-            before {
-                val downloadTask = args[0] ?: return@before
+        )?.intercept {
+            val downloadTask = args.firstOrNull {
+                packageInstance.absTask.selfClass?.isInstance(it) == true
+            } ?: run {
+                YLog.error("$TAG: download task not found in argument list")
+                return@intercept proceed()
+            }
 
-                val vvicImagePathList = downloadTask.invokeMethodOrNull<List<String?>>(
-                    packageInstance.absTask.getTargetFilePaths()
-                )?.filterNotNull()?.filter {
-                    it.isNotBlank() && File(it).exists() && FileTypeDetector.detect(it).mimeType == "image/vvic"
-                }
+            val vvicImagePathList = downloadTask.invokeMethodOrNull<List<String?>>(
+                packageInstance.absTask.getTargetFilePaths()
+            )?.filterNotNull()?.filter {
+                it.isNotBlank() && File(it).exists() && FileTypeDetector.detect(it).mimeType == "image/vvic"
+            }
 
-                if (verbose) {
-                    YLog.debug("$TAG: vvic image path list: $vvicImagePathList")
-                }
+            if (verbose) {
+                YLog.debug("$TAG: vvic image path list: $vvicImagePathList")
+            }
 
-                vvicImagePathList?.forEach {
-                    if (!overwriteVvicWithPng(it)) {
-                        YLog.error("$TAG: failed to convert vvic cover image to png: $it")
-                    }
+            vvicImagePathList?.forEach {
+                if (!overwriteVvicWithPng(it)) {
+                    YLog.error("$TAG: failed to convert vvic cover image to png: $it")
                 }
             }
+            proceed()
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to convert vvic cover image to png", throwable)
@@ -180,44 +185,46 @@ object FeedMultiImageHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installDisableVEAddLiveVideoWaterMarkHook(): YukiHookCreator.ClassicMemberHooker.Handle? =
+    private fun installDisableVEAddLiveVideoWaterMarkHook(): YukiHookCreator.MemberHooker<*>.Handle? =
         packageInstance.abTestServiceImpl.selfClass?.resolveMethodOrNull(
             packageInstance.abTestServiceImpl.enableVEAddLiveVideoWaterMark()
-        )?.hook {
-            before {
-                if (verbose) {
-                    YLog.debug("$TAG: disabling watermark for live video")
-                }
-                result = false
+        )?.intercept {
+            if (verbose) {
+                YLog.debug("$TAG: disabling watermark for live video")
             }
+            false
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to disable ve-add-live-video-water-mark", throwable)
             }
         }
 
-    private fun installConvertVvicImageToPngHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installConvertVvicImageToPngHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.downLoadExecutor.selfClass?.resolveMethodOrNull(
             packageInstance.downLoadExecutor.execute()
-        )?.hook {
-            before {
-                val downloadTask = args[0] ?: return@before
+        )?.intercept {
+            val downloadTask = args.firstOrNull {
+                packageInstance.absTask.selfClass?.isInstance(it) == true
+            } ?: run {
+                YLog.error("$TAG: download task not found in argument list")
+                return@intercept proceed()
+            }
 
-                val imageFilePath = downloadTask.invokeMethodOrNull<List<String?>>(
-                    packageInstance.absTask.getTargetFilePaths()
-                )?.filterNotNull()?.filter {
-                    it.isNotBlank() && File(it).exists() && FileTypeDetector.detect(it).mimeType == "image/vvic"
-                } ?: run {
-                    YLog.error("$TAG: failed to get image file path when downloading image")
-                    return@before
-                }
+            val imageFilePath = downloadTask.invokeMethodOrNull<List<String?>>(
+                packageInstance.absTask.getTargetFilePaths()
+            )?.filterNotNull()?.filter {
+                it.isNotBlank() && File(it).exists() && FileTypeDetector.detect(it).mimeType == "image/vvic"
+            } ?: run {
+                YLog.error("$TAG: failed to get image file path when downloading image")
+                return@intercept proceed()
+            }
 
-                imageFilePath.forEach {
-                    if (!overwriteVvicWithPng(it)) {
-                        YLog.error("$TAG: failed to convert vvic image to png when downloading image: $it")
-                    }
+            imageFilePath.forEach {
+                if (!overwriteVvicWithPng(it)) {
+                    YLog.error("$TAG: failed to convert vvic image to png when downloading image: $it")
                 }
             }
+            proceed()
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to convert vvic image to png", throwable)
@@ -225,28 +232,27 @@ object FeedMultiImageHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installConvertSingleVvicImageToMp4Hook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installConvertSingleVvicImageToMp4Hook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.storyServiceImpl.selfClass?.resolveMethodOrNull(
             packageInstance.storyServiceImpl.convertImgToMp4()
-        )?.hook {
-            before {
-                val imagePath = args[2] as? String ?: run {
-                    YLog.error("$TAG: ${args[2]?.javaClass?.name} is not String")
-                    return@before
-                }
-                val vvicImagePath = imagePath.takeIf {
-                    it.isNotBlank() && File(it).exists() && FileTypeDetector.detect(it).mimeType == "image/vvic"
-                }
-                if (vvicImagePath == null) {
-                    return@before
-                } else if (verbose) {
-                    YLog.debug("$TAG: vvic image path: $vvicImagePath")
-                }
-
-                if (!overwriteVvicWithPng(vvicImagePath)) {
-                    YLog.error("$TAG: failed to convert single vvic image to png in mp4 composer: $vvicImagePath")
-                }
+        )?.intercept {
+            val imagePath = args[2] as? String ?: run {
+                YLog.error("$TAG: ${args[2]?.javaClass?.name} is not String")
+                return@intercept proceed()
             }
+            val vvicImagePath = imagePath.takeIf {
+                it.isNotBlank() && File(it).exists() && FileTypeDetector.detect(it).mimeType == "image/vvic"
+            }
+            if (vvicImagePath == null) {
+                return@intercept proceed()
+            } else if (verbose) {
+                YLog.debug("$TAG: vvic image path: $vvicImagePath")
+            }
+
+            if (!overwriteVvicWithPng(vvicImagePath)) {
+                YLog.error("$TAG: failed to convert single vvic image to png in mp4 composer: $vvicImagePath")
+            }
+            proceed()
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to convert single vvic image to png in mp4 composer", throwable)
@@ -254,30 +260,29 @@ object FeedMultiImageHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installConvertMultiVvicImagesToMp4Hook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installConvertMultiVvicImagesToMp4Hook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.storyServiceImpl.selfClass?.resolveMethodOrNull(
             packageInstance.storyServiceImpl.convertSingleLivePhotoToMp4UseMusicUrl()
-        )?.hook {
-            before {
-                @Suppress("UNCHECKED_CAST")
-                val imagePathList = args[2] as? List<List<String?>> ?: run {
-                    YLog.error("$TAG: image path list is null")
-                    return@before
-                }
-                val vvicImagePathList = imagePathList.flatten().filterNotNull().filter {
-                    it.isNotBlank() && File(it).exists() && FileTypeDetector.detect(it).mimeType == "image/vvic"
-                }
+        )?.intercept {
+            @Suppress("UNCHECKED_CAST")
+            val imagePathList = args[2] as? List<List<String?>> ?: run {
+                YLog.error("$TAG: image path list is null")
+                return@intercept proceed()
+            }
+            val vvicImagePathList = imagePathList.flatten().filterNotNull().filter {
+                it.isNotBlank() && File(it).exists() && FileTypeDetector.detect(it).mimeType == "image/vvic"
+            }
 
-                if (verbose) {
-                    YLog.debug("$TAG: vvic image path list: $vvicImagePathList")
-                }
+            if (verbose) {
+                YLog.debug("$TAG: vvic image path list: $vvicImagePathList")
+            }
 
-                vvicImagePathList.forEach {
-                    if (!overwriteVvicWithPng(it)) {
-                        YLog.error("$TAG: failed to convert multi vvic images to png in mp4 composer: $it")
-                    }
+            vvicImagePathList.forEach {
+                if (!overwriteVvicWithPng(it)) {
+                    YLog.error("$TAG: failed to convert multi vvic images to png in mp4 composer: $it")
                 }
             }
+            proceed()
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to convert multi vvic images to png in mp4 composer", throwable)

@@ -3,13 +3,14 @@ package io.github.twyora.douyinenhancer.hook.comment
 import android.content.Context
 import android.net.Uri
 import com.highcapable.kavaref.extension.createInstance
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.hook.DouyinPackage
 import io.github.twyora.douyinenhancer.hook.HookOnMainProcess
+import io.github.twyora.douyinenhancer.utils.crypto.md5Hex
 import io.github.twyora.douyinenhancer.utils.file.FileTypeDetector
 import io.github.twyora.douyinenhancer.utils.hook.HookTransaction
 import io.github.twyora.douyinenhancer.utils.reflect.getFieldOrNull
@@ -55,30 +56,33 @@ object CommentAudioHooker : YukiBaseHooker() {
         transaction.commit()
     }
 
-    private fun installForceSaveImageVisibleHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installForceSaveImageVisibleHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         // if the comment contains audio, show the save image button
         return packageInstance.saveImageActionItem.selfClass?.resolveMethodOrNull(
             packageInstance.saveImageActionItem.isVisible()
-        )?.hook {
-            after {
-                if ((result as? Boolean) == true) {
-                    return@after
-                }
+        )?.intercept {
+            val visible = proceed<Boolean>()
+            if (visible == true) {
+                return@intercept visible
+            }
 
-                // if the comment contains audio, show the save image button
-                val commentAudio = instance.getFieldOrNull<Any>(
-                    packageInstance.commentLongPressItemModel.commentActionParams()
-                )?.getFieldOrNull<Any>(
-                    packageInstance.commentActionParams.comment()
-                )?.getFieldOrNull<Any>(
-                    packageInstance.comment.commentAudio()
-                )
-                if (commentAudio != null) {
-                    if (verbose) {
-                        YLog.debug("$TAG: comment contains audio, showing save image button")
-                    }
-                    result = true
+            // if the comment contains audio, show the save image button
+            val commentAudio = instance.getFieldOrNull<Any>(
+                packageInstance.commentLongPressItemModel.commentActionParams()
+            )?.getFieldOrNull<Any>(
+                packageInstance.commentActionParams.comment()
+            )?.getFieldOrNull<Any>(
+                packageInstance.comment.commentAudio()
+            )?.also {
+                if (verbose) {
+                    YLog.debug("$TAG: comment contains audio, showing save image button")
                 }
+            }
+
+            if (commentAudio != null) {
+                true
+            } else {
+                proceed()
             }
         }?.apply {
             onCallbackFailure { _, throwable ->
@@ -87,32 +91,34 @@ object CommentAudioHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installAddSaveImageToWhiteListHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installAddSaveImageToWhiteListHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.commentLongPressWhiteListProvider.selfClass?.resolveMethodOrNull(
             packageInstance.commentLongPressWhiteListProvider.buildWhiteList()
-        )?.hook {
-            after {
-                @Suppress("UNCHECKED_CAST")
-                val whiteList = result as? MutableSet<String> ?: run {
-                    YLog.error("$TAG: white list result is not a MutableSet, cannot add save action")
-                    return@after
-                }
-                if (whiteList.contains("save_image")) {
-                    return@after
-                }
-
-                val commentAudio = args[0]?.getFieldOrNull<Any>(
-                    packageInstance.commentActionParams.comment()
-                )?.getFieldOrNull<Any>(
-                    packageInstance.comment.commentAudio()
-                )
-                if (commentAudio != null) {
-                    if (verbose) {
-                        YLog.debug("$TAG: comment contains audio, added \"save_image\" to white list")
-                    }
-                    whiteList.add("save_image")
-                }
+        )?.intercept {
+            @Suppress("UNCHECKED_CAST")
+            val whiteList = proceed<MutableSet<String>>() ?: run {
+                YLog.error("$TAG: white list is null")
+                return@intercept null
             }
+            if (whiteList.contains("save_image")) {
+                return@intercept whiteList
+            }
+
+            args.firstOrNull {
+                packageInstance.comment.selfClass?.isInstance(it) == true
+            }?.getFieldOrNull<Any>(
+                packageInstance.commentActionParams.comment()
+            )?.getFieldOrNull<Any>(
+                packageInstance.comment.commentAudio()
+            )?.also {
+                if (verbose) {
+                    YLog.debug("$TAG: comment contains audio, added \"save_image\" to white list")
+                }
+            }?.let {
+                whiteList.add("save_image")
+            }
+
+            whiteList
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to add \"save_image\" to white list", throwable)
@@ -120,52 +126,54 @@ object CommentAudioHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installInjectAudioUrlOnSaveClickHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installInjectAudioUrlOnSaveClickHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.saveImageActionItem.selfClass?.resolveMethodOrNull(
             packageInstance.saveImageActionItem.onClick()
-        )?.hook {
-            before {
-                val comment = instance.getFieldOrNull<Any>(
-                    packageInstance.commentLongPressItemModel.commentActionParams()
-                )?.getFieldOrNull<Any>(
-                    packageInstance.commentActionParams.comment()
-                ) ?: return@before
-
-                val commentAudio = comment.getFieldOrNull<Any>(
-                    packageInstance.comment.commentAudio()
-                ) ?: return@before
-                val commentAudioContent = commentAudio.getFieldOrNull<String>(
-                    packageInstance.commentAudioStruct.content()
-                ) ?: return@before
-
-                val commentAudioJson = runCatching {
-                    JSONObject(commentAudioContent)
-                }.onFailure {
-                    YLog.error("$TAG: failed to parse comment audio content as JSON", it)
-                }.getOrNull() ?: return@before
-                val commentAudioList = commentAudioJson.optJSONArray("video_list") ?: return@before
-                val firstCommentAudio = commentAudioList.optJSONObject(0) ?: return@before
-                val commentAudioMainUrl = firstCommentAudio.optString("main_url")
-                val commentAudioBackupUrl = firstCommentAudio.optString("backup_url")
-                val audioUrls = listOf(
-                    commentAudioMainUrl,
-                    commentAudioBackupUrl
-                ).filter {
-                    !it.isNullOrBlank()
-                }.takeIf {
-                    it.isNotEmpty()
-                } ?: run {
-                    YLog.error("$TAG: no valid audio URL found in comment audio content, cannot inject")
-                    return@before
-                }
-
-                injectAudioUrl(comment, audioUrls)
-                args[0] = 0
-
-                if (verbose) {
-                    YLog.debug("$TAG: injected ${audioUrls.size} audio URL(s) into comment")
-                }
+        )?.intercept {
+            val comment = instance.getFieldOrNull<Any>(
+                packageInstance.commentLongPressItemModel.commentActionParams()
+            )?.getFieldOrNull<Any>(
+                packageInstance.commentActionParams.comment()
+            ) ?: run {
+                YLog.error("$TAG: failed to get comment from save image action item")
+                return@intercept proceed()
             }
+
+            val commentAudioContent = comment.getFieldOrNull<Any>(
+                packageInstance.comment.commentAudio()
+            )?.getFieldOrNull<String>(
+                packageInstance.commentAudioStruct.content()
+            ) ?: return@intercept proceed()
+
+            val commentAudioJson = runCatching {
+                JSONObject(commentAudioContent)
+            }.getOrElse {
+                YLog.error("$TAG: failed to parse comment audio content as JSON", it)
+                return@intercept proceed()
+            }
+
+            val firstCommentAudio = commentAudioJson.optJSONArray("video_list")?.optJSONObject(0) ?: run {
+                YLog.error("$TAG: no video_list in comment audio content")
+                return@intercept proceed()
+            }
+            val commentAudioMainUrl = firstCommentAudio.optString("main_url")
+            val commentAudioBackupUrl = firstCommentAudio.optString("backup_url")
+            val audioUrls = listOf(
+                commentAudioMainUrl,
+                commentAudioBackupUrl
+            ).filter {
+                !it.isNullOrBlank()
+            }.ifEmpty {
+                YLog.error("$TAG: no valid audio URL found in comment audio content, cannot inject")
+                return@intercept proceed()
+            }
+
+            injectAudioUrl(comment, audioUrls)
+            if (verbose) {
+                YLog.debug("$TAG: injected ${audioUrls.size} audio URL(s) into comment")
+            }
+
+            proceed(arrayOf(0))
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to inject audio URLs into save image download pipeline", throwable)
@@ -173,92 +181,96 @@ object CommentAudioHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installSaveDownloadedAudioHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installSaveDownloadedAudioHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.commentImageSaveDownloadListener.selfClass?.resolveMethodOrNull(
             packageInstance.commentImageSaveDownloadListener.onSuccessed()
-        )?.hook {
-            before {
-                val downloadInfo = args[0] ?: return@before
-
-                val sourcePath = downloadInfo.invokeMethodOrNull<String>(
-                    packageInstance.downloadInfo.getTargetFilePath()
-                ) ?: return@before
-                val ftypeInfo = FileTypeDetector.detect(sourcePath)
-                val dlUrl = downloadInfo.getFieldOrNull<String>(
-                    packageInstance.downloadInfo.url()
-                ) ?: return@before
-
-                if (!dlUrl.contains("mime_type=audio")) {
-                    if (verbose) {
-                        YLog.debug("$TAG: download url is not an audio url, skipping saving audio")
-                    }
-                    return@before
-                } else if (!ftypeInfo.mimeType.startsWith("audio/")) {
-                    if (verbose) {
-                        YLog.debug("$TAG: downloaded file MIME type is ${ftypeInfo.mimeType}, not an audio file, skipping saving audio")
-                    }
-                    return@before
-                }
-
-                val targetFileName = "audio_${
-                    packageInstance.digestUtils.selfClass?.invokeStaticMethodOrNull<String>(
-                        packageInstance.digestUtils.md5Hex(),
-                        dlUrl + System.currentTimeMillis().toString()
-                    )
-                }.${ftypeInfo.extensions.first()}"
-
-                if (verbose) {
-                    YLog.debug("$TAG: audio file name: $targetFileName")
-                }
-
-                val context = instance.getFieldOrNull<Any>(
-                    packageInstance.commentImageSaveDownloadListener.listenerProviderParam()
-                )?.getFieldOrNull<Context>(
-                    packageInstance.listenerProviderParam.context()
-                ) ?: run {
-                    YLog.error("$TAG: unable to get Context from download listener")
-                    return@before
-                }
-
-                val targetUri = packageInstance.ugFileUtils.selfClass?.invokeStaticMethodOrNull<Uri>(
-                    packageInstance.ugFileUtils.getAudioUri(),
-                    context,
-                    targetFileName,
-                    ftypeInfo.mimeType,
-                    "Music/douyin/audio",
-                    instance.getFieldOrNull<Any>(
-                        packageInstance.commentImageSaveDownloadListener.listenerProviderParam()
-                    )?.getFieldOrNull<Any>(
-                        packageInstance.listenerProviderParam.cert()
-                    )
-                ) ?: run {
-                    YLog.error("$TAG: unable to create audio media URI for saving")
-                    return@before
-                }
-                if (targetUri == Uri.EMPTY) {
-                    YLog.error("$TAG: audio media URI is empty")
-                    return@before
-                }
-
-                val copyState = runCatching {
-                    context.contentResolver.openOutputStream(targetUri)?.use { outputStream ->
-                        FileInputStream(sourcePath).use { inputStream ->
-                            inputStream.copyTo(outputStream)
-                        }
-                    }
-                    true
-                }.onFailure {
-                    YLog.error("$TAG: failed to copy audio file to media store", it)
-                }.getOrDefault(false)
-
-                instance.invokeMethodOnly(
-                    packageInstance.commentImageSaveDownloadListener.notifyResult(),
-                    context,
-                    copyState
-                )
-
-                result = null
+        )?.intercept {
+            val downloadInfo = args.firstOrNull {
+                packageInstance.downloadInfo.selfClass?.isInstance(it) == true
+            } ?: run {
+                YLog.error("$TAG: downloadInfo not found in argument list")
+                return@intercept proceed()
             }
+
+            val sourcePath = downloadInfo.invokeMethodOrNull<String>(
+                packageInstance.downloadInfo.getTargetFilePath()
+            ) ?: run {
+                YLog.error("$TAG: failed to get downloaded audio file path")
+                return@intercept proceed()
+            }
+            val ftypeInfo = FileTypeDetector.detect(sourcePath)
+
+            val dlUrl = downloadInfo.getFieldOrNull<String>(
+                packageInstance.downloadInfo.url()
+            ) ?: run {
+                YLog.error("$TAG: failed to get download url from download info")
+                return@intercept proceed()
+            }
+            if (!dlUrl.contains("mime_type=audio")) {
+                if (verbose) {
+                    YLog.debug("$TAG: download url is not an audio url, skipping saving audio")
+                }
+                return@intercept proceed()
+            } else if (!ftypeInfo.mimeType.startsWith("audio/")) {
+                YLog.error("$TAG: audio MIME type restricted: ${ftypeInfo.mimeType}")
+                return@intercept proceed()
+            }
+
+            val context = instance.getFieldOrNull<Any>(
+                packageInstance.commentImageSaveDownloadListener.listenerProviderParam()
+            )?.getFieldOrNull<Context>(
+                packageInstance.listenerProviderParam.context()
+            ) ?: run {
+                YLog.error("$TAG: unable to get Context from download listener")
+                return@intercept proceed()
+            }
+
+            val targetFileName = "audio_${
+                (dlUrl + System.currentTimeMillis().toString()).md5Hex()
+            }.${ftypeInfo.extensions.first()}".also {
+                if (verbose) {
+                    YLog.debug("$TAG: audio file name: $it")
+                }
+            }
+            val targetUri = packageInstance.ugFileUtils.selfClass?.invokeStaticMethodOrNull<Uri>(
+                packageInstance.ugFileUtils.getAudioUri(),
+                context,
+                targetFileName,
+                ftypeInfo.mimeType,
+                "Music/douyin/audio",
+                instance.getFieldOrNull<Any>(
+                    packageInstance.commentImageSaveDownloadListener.listenerProviderParam()
+                )?.getFieldOrNull<Any>(
+                    packageInstance.listenerProviderParam.cert()
+                )
+            )?.takeIf {
+                it != Uri.EMPTY
+            } ?: run {
+                YLog.error("$TAG: audioUri is null or empty")
+                return@intercept proceed()
+            }
+
+            val copyRet = runCatching {
+                context.contentResolver.openOutputStream(targetUri)?.use { outputStream ->
+                    FileInputStream(sourcePath).use { inputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+                true
+            }.onFailure {
+                YLog.error("$TAG: failed to copy audio file to media store", it)
+            }.getOrElse {
+                return@intercept proceed()
+            }
+
+            instance.invokeMethodOnly(
+                packageInstance.commentImageSaveDownloadListener.notifyResult(),
+                context,
+                copyRet
+            )
+
+            // short-circuits the remaining chain and the original method, returning null to the caller
+            null
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to save downloaded audio to media store", throwable)
