@@ -1,6 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -68,62 +68,53 @@ object RecommendedFeedHooker : YukiBaseHooker() {
         // begin unvalidated filter condition
         packageInstance.feedResponseHandler.selfClass?.resolveMethodOrNull(
             packageInstance.feedResponseHandler.processAwemeList()
-        )?.hook {
-            before {
-                val awemeList = args[2] as? MutableList<*> ?: return@before
+        )?.intercept {
+            val awemeList = args.firstNotNullOfOrNull {
+                it as? MutableList<*>
+            } ?: run {
+                YLog.error("$TAG: aweme list not found in argument list")
+                return@intercept proceed()
+            }
 
-                val removed = awemeList.removeIf {
-                    with(ConfigManager.recommendedFeedFilter) {
-                        // begin unvalidated filter condition
+            val removed = awemeList.removeIf {
+                with(ConfigManager.recommendedFeedFilter) {
+                    // begin unvalidated filter condition
+                    (blockAd.value && it?.invokeMethodOrNull<Boolean>(packageInstance.aweme.getAd()) == true) ||
+                        (blockEcom.value && it?.invokeMethodOrNull<Boolean>(packageInstance.aweme.isEcomAweme()) == true) ||
+                        (blockGrouponLargeCard.value && it?.getFieldOrNull<Any>(packageInstance.aweme.grouponLargeCard()) != null) ||
+                        (blockLive.value && it?.invokeMethodOrNull<Boolean>(packageInstance.aweme.isLive()) == true) ||
+                        (blockMultiImage.value && it?.invokeMethodOrNull<Boolean>(packageInstance.aweme.isMultiImage()) == true) ||
+                        // end unvalidated filter condition
                         (
-                            blockAd.value &&
-                                it?.invokeMethodOrNull<Boolean>(packageInstance.aweme.getAd()) == true
-                            ) ||
-                            (
-                                blockEcom.value &&
-                                    it?.invokeMethodOrNull<Boolean>(packageInstance.aweme.isEcomAweme()) == true
-                                ) ||
-                            (
-                                blockGrouponLargeCard.value &&
-                                    it?.getFieldOrNull<Any>(packageInstance.aweme.grouponLargeCard()) != null
-                                ) ||
-                            (
-                                blockLive.value &&
-                                    it?.invokeMethodOrNull<Boolean>(packageInstance.aweme.isLive()) == true
-                                ) ||
-                            (
-                                blockMultiImage.value &&
-                                    it?.invokeMethodOrNull<Boolean>(packageInstance.aweme.isMultiImage()) == true
-                                ) ||
-                            // end unvalidated filter condition
-                            (
-                                blockFollowedAuthor.value && it?.invokeMethodOrNull<Int>(
+                            blockFollowedAuthor.value &&
+                                it?.invokeMethodOrNull<Int>(
                                     packageInstance.aweme.getFollowStatus()
                                 )?.takeIf { status ->
                                     status != DouyinPackage.UserModule.FOLLOW_STATUS_UNFOLLOWED
                                 } != null
-                                ) ||
-                            (
-                                it?.let { aweme ->
-                                    shouldFilterByDuration(aweme)
-                                } == true
-                                ) ||
-                            (
-                                it?.let { aweme ->
-                                    shouldFilterByInteractionStats(aweme)
-                                } == true
-                                ) ||
-                            (
-                                it?.let { aweme ->
-                                    shouldFilterByKeyword(aweme)
-                                } == true
-                                )
-                    }
-                }
-                if (!removed) {
-                    YLog.warn("$TAG: no recommended feed aweme removed")
+                            ) ||
+                        (
+                            it?.let { aweme ->
+                                shouldFilterByDuration(aweme)
+                            } == true
+                            ) ||
+                        (
+                            it?.let { aweme ->
+                                shouldFilterByInteractionStats(aweme)
+                            } == true
+                            ) ||
+                        (
+                            it?.let { aweme ->
+                                shouldFilterByKeyword(aweme)
+                            } == true
+                            )
                 }
             }
+            if (!removed) {
+                YLog.warn("$TAG: no recommended feed aweme removed")
+            }
+
+            proceed()
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to filter recommended feed aweme", throwable)

@@ -1,6 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -26,13 +26,11 @@ object FeedDoubleTapDiggHooker : YukiBaseHooker() {
 
         packageInstance.baseListFragmentPanel.selfClass?.resolveMethodOrNull(
             packageInstance.baseListFragmentPanel.handleBigDiggViewClick()
-        )?.hook {
-            before {
-                if (verbose) {
-                    YLog.debug("$TAG: intercepting double-tap digg")
-                }
-                result = null
+        )?.intercept {
+            if (verbose) {
+                YLog.debug("$TAG: intercepting double-tap digg")
             }
+            null
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to intercept double-tap digg", throwable)

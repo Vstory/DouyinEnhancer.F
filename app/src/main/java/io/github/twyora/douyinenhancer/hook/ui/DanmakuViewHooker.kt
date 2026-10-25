@@ -2,7 +2,7 @@ package io.github.twyora.douyinenhancer.hook.ui
 
 import android.view.View
 import androidx.collection.ArraySet
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
@@ -34,29 +34,30 @@ object DanmakuViewHooker : YukiBaseHooker() {
         installBlockDanmakuContainerVisibilityChangeHook()
     }
 
-    private fun installAssignDanmakuViewIdHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installAssignDanmakuViewIdHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.danmakuView.selfClass?.resolveMethodOrNull(
             packageInstance.danmakuView.onAttachedToWindow()
-        )?.hook {
-            after {
-                val danmakuView = instanceOrNull<View>() ?: run {
-                    YLog.error("$TAG: ${instance::class.qualifiedName} is not View")
-                    return@after
-                }
+        )?.intercept {
+            val result = proceed()
 
-                if (danmakuView.id == View.NO_ID) {
-                    val danmakuViewId = danmakuViewIds.first()
-                    if (verbose) {
-                        YLog.debug("$TAG: assign danmaku view id($danmakuViewId) to view without id")
-                    }
-                    danmakuView.id = danmakuViewId
-                } else {
-                    if (verbose) {
-                        YLog.debug("$TAG: collect existing danmaku view id(${danmakuView.id})")
-                    }
-                    danmakuViewIds.add(danmakuView.id)
-                }
+            val danmakuView = instanceOrNull<View>() ?: run {
+                YLog.error("$TAG: ${instance::class.qualifiedName} is not View")
+                return@intercept result
             }
+
+            if (danmakuView.id == View.NO_ID) {
+                val danmakuViewId = danmakuViewIds.first()
+                if (verbose) {
+                    YLog.debug("$TAG: assign danmaku view id($danmakuViewId) to view without id")
+                }
+                danmakuView.id = danmakuViewId
+            } else {
+                if (verbose) {
+                    YLog.debug("$TAG: collect existing danmaku view id(${danmakuView.id})")
+                }
+                danmakuViewIds.add(danmakuView.id)
+            }
+            result
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to assign danmaku view id", throwable)
@@ -64,31 +65,29 @@ object DanmakuViewHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installBlockDanmakuContainerVisibilityChangeHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installBlockDanmakuContainerVisibilityChangeHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.cleanModePresenter.selfClass?.resolveMethodOrNull(
             packageInstance.cleanModePresenter.manageViewVisibility()
-        )?.hook {
-            before {
-                val managedView = args.firstNotNullOfOrNull {
-                    it as? View
-                } ?: run {
-                    YLog.error("$TAG: managed view not found in argument list")
-                    return@before
-                }
-
-                if (danmakuViewIds.none {
-                        managedView.findViewById<View?>(it) != null
-                    }
-                ) {
-                    return@before
-                }
-
-                YLog.info(
-                    "$TAG: ${managedView::class.qualifiedName}{id=0x${managedView.id.toString(16)}} is" +
-                        " a danmaku view container; will intercept to block visibility state change"
-                )
-                result = null
+        )?.intercept {
+            val managedView = args.firstNotNullOfOrNull {
+                it as? View
+            } ?: run {
+                YLog.error("$TAG: managed view not found in argument list")
+                return@intercept proceed()
             }
+
+            if (danmakuViewIds.none {
+                    managedView.findViewById<View?>(it) != null
+                }
+            ) {
+                return@intercept proceed()
+            }
+
+            YLog.info(
+                "$TAG: ${managedView::class.qualifiedName}{id=0x${managedView.id.toString(16)}} is" +
+                    " a danmaku view container; will intercept to block visibility state change"
+            )
+            null
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to block danmaku container visibility change", throwable)

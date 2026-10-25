@@ -1,6 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.feed
 
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
@@ -28,24 +28,24 @@ object ListenAwemeFilterHooker : YukiBaseHooker() {
         installBypassListenAwemeFilterHook()
     }
 
-    private fun installBypassListenAwemeFilterHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installBypassListenAwemeFilterHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.listenAwemeFilter.selfClass?.resolveMethodOrNull(
             packageInstance.listenAwemeFilter.accept()
-        )?.hook {
-            after {
-                if (result == true) {
-                    return@after
-                }
-
-                if (verbose) {
-                    val aweme = args[0]
-                    val awemeId = aweme?.getFieldOrNull<String>(
-                        packageInstance.aweme.aid()
-                    )
-                    YLog.debug("$TAG: bypassing listen aweme filter for aweme id: $awemeId")
-                }
-                result = true
+        )?.intercept {
+            val result = proceed<Boolean>()
+            if (result == true) {
+                return@intercept result
             }
+
+            if (verbose) {
+                val awemeId = args.firstOrNull {
+                    packageInstance.aweme.selfClass?.isInstance(it) == true
+                }?.getFieldOrNull<String>(
+                    packageInstance.aweme.aid()
+                )
+                YLog.debug("$TAG: bypassing listen aweme filter for aweme id: $awemeId")
+            }
+            true
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to bypass aweme in filter", throwable)

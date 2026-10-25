@@ -5,7 +5,7 @@ import android.net.Uri
 import android.webkit.MimeTypeMap
 import androidx.core.graphics.createBitmap
 import com.highcapable.kavaref.extension.createInstance
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
@@ -13,6 +13,7 @@ import com.shakster.gifkt.GifEncoder
 import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.hook.DouyinPackage
 import io.github.twyora.douyinenhancer.hook.HookOnMainProcess
+import io.github.twyora.douyinenhancer.utils.crypto.md5Hex
 import io.github.twyora.douyinenhancer.utils.file.FileTypeDetector
 import io.github.twyora.douyinenhancer.utils.hook.HookTransaction
 import io.github.twyora.douyinenhancer.utils.reflect.getFieldOrNull
@@ -71,34 +72,37 @@ object CommentEmojiHooker : YukiBaseHooker() {
         transaction.commit()
     }
 
-    private fun installSaveEmojiToAlbumButtonHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installSaveEmojiToAlbumButtonHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.saveImageActionItem.selfClass?.resolveMethodOrNull(
             packageInstance.saveImageActionItem.isVisible()
-        )?.hook {
-            before {
-                val comment = instance.getFieldOrNull<Any>(
-                    packageInstance.commentLongPressItemModel.commentActionParams()
-                )?.getFieldOrNull<Any>(
-                    packageInstance.commentActionParams.comment()
-                ) ?: run {
-                    YLog.error("$TAG: failed to get comment from save image action item")
-                    return@before
-                }
+        )?.intercept {
+            val comment = instance.getFieldOrNull<Any>(
+                packageInstance.commentLongPressItemModel.commentActionParams()
+            )?.getFieldOrNull<Any>(
+                packageInstance.commentActionParams.comment()
+            ) ?: run {
+                YLog.error("$TAG: failed to get comment from save image action item")
+                return@intercept proceed()
+            }
 
-                val emojiUrls = comment.getFieldOrNull<Any>(
-                    packageInstance.comment.emoji()
-                )?.getFieldOrNull<Any>(
-                    packageInstance.emoji.animateUrl()
-                )?.getFieldOrNull<List<String>>(
-                    packageInstance.urlModel.urlList()
-                )
-                if (!emojiUrls.isNullOrEmpty()) {
-                    if (verbose) {
-                        YLog.debug("$TAG: emoji comment detected, forcing save image button visible")
-                    }
-                    // force the visibility check to return true — show save button
-                    result = true
+            val emojiUrls = comment.getFieldOrNull<Any>(
+                packageInstance.comment.emoji()
+            )?.getFieldOrNull<Any>(
+                packageInstance.emoji.animateUrl()
+            )?.getFieldOrNull<List<String>>(
+                packageInstance.urlModel.urlList()
+            )?.takeIf {
+                it.isNotEmpty()
+            }?.also {
+                if (verbose) {
+                    YLog.debug("$TAG: emoji comment detected, forcing save image button visible")
                 }
+            }
+
+            if (emojiUrls != null) {
+                true
+            } else {
+                proceed()
             }
         }?.apply {
             onCallbackFailure { _, throwable ->
@@ -107,42 +111,38 @@ object CommentEmojiHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installClickSaveEmojiToAlbumButtonCallbackHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installClickSaveEmojiToAlbumButtonCallbackHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.saveImageActionItem.selfClass?.resolveMethodOrNull(
             packageInstance.saveImageActionItem.onClick()
-        )?.hook {
-            before {
-                val comment = instance.getFieldOrNull<Any>(
-                    packageInstance.commentLongPressItemModel.commentActionParams()
-                )?.getFieldOrNull<Any>(
-                    packageInstance.commentActionParams.comment()
-                ) ?: run {
-                    YLog.error("$TAG: failed to get comment from ${instance::class.qualifiedName}")
-                    return@before
-                }
-                val emojiUrls = comment.getFieldOrNull<Any>(
-                    packageInstance.comment.emoji()
-                )?.getFieldOrNull<Any>(
-                    packageInstance.emoji.animateUrl()
-                )?.getFieldOrNull<List<String>>(
-                    packageInstance.urlModel.urlList()
-                ) ?: run {
-                    YLog.error("$TAG: failed to get emoji URLs from ${comment::class.qualifiedName}")
-                    return@before
-                }
-
-                if (emojiUrls.isEmpty()) {
-                    YLog.warn("$TAG: emoji URL list is empty, skipping emoji injection")
-                    return@before
-                }
-
-                injectEmojiUrls(comment, emojiUrls)
-                args[0] = 0
-
-                if (verbose) {
-                    YLog.debug("$TAG: injected ${emojiUrls.size} emoji URL(s) into comment")
-                }
+        )?.intercept {
+            val comment = instance.getFieldOrNull<Any>(
+                packageInstance.commentLongPressItemModel.commentActionParams()
+            )?.getFieldOrNull<Any>(
+                packageInstance.commentActionParams.comment()
+            ) ?: run {
+                YLog.error("$TAG: failed to get comment from ${instance::class.qualifiedName}")
+                return@intercept proceed()
             }
+
+            val emojiUrls = comment.getFieldOrNull<Any>(
+                packageInstance.comment.emoji()
+            )?.getFieldOrNull<Any>(
+                packageInstance.emoji.animateUrl()
+            )?.getFieldOrNull<List<String>>(
+                packageInstance.urlModel.urlList()
+            ) ?: return@intercept proceed()
+
+            if (emojiUrls.isEmpty()) {
+                YLog.warn("$TAG: emoji URL list is empty, skipping emoji injection")
+                return@intercept proceed()
+            }
+
+            injectEmojiUrls(comment, emojiUrls)
+            if (verbose) {
+                YLog.debug("$TAG: injected ${emojiUrls.size} emoji URL(s) into comment")
+            }
+
+            proceed(arrayOf(0))
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to inject emoji URL(s) into save image download pipeline", throwable)
@@ -150,134 +150,131 @@ object CommentEmojiHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installEmojiDownloadedCallbackHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installEmojiDownloadedCallbackHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.commentImageSaveDownloadListener.selfClass?.resolveMethodOrNull(
             packageInstance.commentImageSaveDownloadListener.onSuccessed()
-        )?.hook {
-            before {
-                val downloadInfo = args.firstOrNull {
-                    packageInstance.downloadInfo.selfClass?.isInstance(it) == true
-                } ?: run {
-                    YLog.error("$TAG: downloadInfo not found in argument list")
-                    return@before
+        )?.intercept {
+            val downloadInfo = args.firstOrNull {
+                packageInstance.downloadInfo.selfClass?.isInstance(it) == true
+            } ?: run {
+                YLog.error("$TAG: downloadInfo not found in argument list")
+                return@intercept proceed()
+            }
+
+            val dlUrl = downloadInfo.getFieldOrNull<String>(
+                packageInstance.downloadInfo.url()
+            ) ?: run {
+                YLog.error("$TAG: failed to get download url from download info, skipping emoji handling")
+                return@intercept proceed()
+            }
+            // emoji animateUrl file extension is always .heif
+            if (!dlUrl.contains(".heif")) {
+                if (verbose) {
+                    YLog.debug("$TAG: download url does not contain \".heif\", skipping")
                 }
+                return@intercept proceed()
+            }
 
-                val dlUrl = downloadInfo.getFieldOrNull<String>(
-                    packageInstance.downloadInfo.url()
-                ) ?: run {
-                    YLog.error("$TAG: failed to get download url from download info, skipping emoji handling")
-                    return@before
-                }
-                // Emoji animateUrl file extension is always .heif
-                if (!dlUrl.contains(".heif")) {
-                    if (verbose) {
-                        YLog.debug("$TAG: download url does not contain \".heif\", skipping")
-                    }
-                    return@before
-                }
+            // downloaded file save path
+            val sourcePath = downloadInfo.invokeMethodOrNull<String?>(
+                packageInstance.downloadInfo.getTargetFilePath()
+            ) ?: run {
+                YLog.error("$TAG: failed to get downloaded emoji file path")
+                return@intercept proceed()
+            }
+            val sourceFileInfo = FileTypeDetector.detect(sourcePath)
+            YLog.info("$TAG: source MIME type: ${sourceFileInfo.mimeType}")
 
-                // Downloaded file save path
-                val sourcePath = downloadInfo.invokeMethodOrNull<String?>(
-                    packageInstance.downloadInfo.getTargetFilePath()
-                ) ?: run {
-                    YLog.error("$TAG: failed to get downloaded emoji file path")
-                    return@before
-                }
-                val sourceFileInfo = FileTypeDetector.detect(sourcePath)
-                YLog.info("$TAG: source MIME type: ${sourceFileInfo.mimeType}")
+            val saveFilePrefix = "comment_${
+                (dlUrl + System.currentTimeMillis().toString()).md5Hex()
+            }"
 
-                val saveFilePrefix = "comment_${
-                    packageInstance.digestUtils.selfClass?.invokeStaticMethodOrNull<String>(
-                        packageInstance.digestUtils.md5Hex(),
-                        dlUrl + System.currentTimeMillis().toString()
-                    )
-                }"
+            // prepare file to save
+            var fileToSave = sourcePath
+            var saveFileExt = sourceFileInfo.extensions.first()
+            var hasTempFile = false
 
-                // Prepare file to save
-                var fileToSave = sourcePath
-                var saveFileExt = sourceFileInfo.extensions.first()
-                var hasTempFile = false
+            if (!sourceFileInfo.mimeType.startsWith("image/") &&
+                !sourceFileInfo.mimeType.startsWith("video/")
+            ) {
+                YLog.error(
+                    "$TAG: source MIME type restricted: ${sourceFileInfo.mimeType}"
+                )
+                return@intercept proceed()
+            }
 
-                if (!sourceFileInfo.mimeType.startsWith("image/") &&
-                    !sourceFileInfo.mimeType.startsWith("video/")
-                ) {
-                    YLog.error(
-                        "$TAG: source MIME type restricted: ${sourceFileInfo.mimeType}"
-                    )
-                    return@before
-                }
+            // convert video source to GIF animation
+            if (sourceFileInfo.mimeType.startsWith("video/")) {
+                YLog.info("$TAG: source MIME type is video, converting to GIF")
 
-                // Convert video source to GIF animation
-                if (sourceFileInfo.mimeType.startsWith("video/")) {
-                    YLog.info("$TAG: source MIME type is video, converting to GIF")
-
-                    val gifTempPath = "${
-                        packageInstance.ugFileUtils.selfClass?.invokeStaticMethodOrNull<String>(
-                            packageInstance.ugFileUtils.getStorageDir(),
-                            "/comment/images",
-                            false
-                        )
-                    }${File.separator}$saveFilePrefix.gif"
-
-                    if (convertMedia2Gif(sourcePath, gifTempPath)) {
-                        fileToSave = gifTempPath
-                        saveFileExt = "gif"
-                        hasTempFile = true
-                    } else {
-                        YLog.error("$TAG: convert video to GIF failed, falling back to direct copy")
-                    }
-                }
-
-                // Copy to album
-                val saveFilePath = "${
+                val gifTempPath = "${
                     packageInstance.ugFileUtils.selfClass?.invokeStaticMethodOrNull<String>(
-                        packageInstance.ugFileUtils.getExternalStorageDir(),
-                        "/douyin/comment",
-                        false,
+                        packageInstance.ugFileUtils.getStorageDir(),
+                        "/comment/images",
                         false
                     )
-                }${File.separator}$saveFilePrefix.$saveFileExt"
+                }${File.separator}$saveFilePrefix.gif"
 
-                if (verbose) {
-                    YLog.debug("$TAG: saving emoji to $saveFilePath")
+                if (convertMedia2Gif(sourcePath, gifTempPath)) {
+                    fileToSave = gifTempPath
+                    saveFileExt = "gif"
+                    hasTempFile = true
+                } else {
+                    YLog.error("$TAG: convert video to GIF failed, falling back to direct copy")
                 }
-
-                val cpRet = packageInstance.ugFileUtils.selfClass?.invokeStaticMethodOrNull<Boolean>(
-                    packageInstance.ugFileUtils.copyFile(),
-                    fileToSave,
-                    saveFilePath,
-                    false,
-                    null,
-                    instance.getFieldOrNull<Any>(
-                        packageInstance.commentImageSaveDownloadListener.listenerProviderParam()
-                    )?.getFieldOrNull<Any>(
-                        packageInstance.listenerProviderParam.cert()
-                    )
-                )
-
-                // shows success dialog
-                val context = instance.getFieldOrNull<Any>(
-                    packageInstance.commentImageSaveDownloadListener.listenerProviderParam()
-                )?.getFieldOrNull<Context>(
-                    packageInstance.listenerProviderParam.context()
-                ) ?: run {
-                    YLog.error("$TAG: unable to get Context from download listener")
-                    return@before
-                }
-
-                instance.invokeMethodOnly(
-                    packageInstance.commentImageSaveDownloadListener.notifyResult(),
-                    context,
-                    cpRet
-                )
-
-                if (hasTempFile) {
-                    File(fileToSave).delete()
-                }
-
-                // Return null to skip original method execution
-                result = null
             }
+
+            // copy to album
+            val saveFilePath = packageInstance.ugFileUtils.selfClass?.invokeStaticMethodOrNull<String>(
+                packageInstance.ugFileUtils.getExternalStorageDir(),
+                "/douyin/comment",
+                false,
+                false
+            )?.let {
+                "$it${File.separator}$saveFilePrefix.$saveFileExt"
+            }?.also {
+                if (verbose) {
+                    YLog.debug("$TAG: saving emoji to $it")
+                }
+            } ?: run {
+                YLog.error("$TAG: failed to get album save path")
+                return@intercept proceed()
+            }
+
+            val cpRet = packageInstance.ugFileUtils.selfClass?.invokeStaticMethodOrNull<Boolean>(
+                packageInstance.ugFileUtils.copyFile(),
+                fileToSave,
+                saveFilePath,
+                false,
+                null,
+                instance.getFieldOrNull<Any>(
+                    packageInstance.commentImageSaveDownloadListener.listenerProviderParam()
+                )?.getFieldOrNull<Any>(
+                    packageInstance.listenerProviderParam.cert()
+                )
+            )
+
+            // shows success dialog
+            val context = instance.getFieldOrNull<Any>(
+                packageInstance.commentImageSaveDownloadListener.listenerProviderParam()
+            )?.getFieldOrNull<Context>(
+                packageInstance.listenerProviderParam.context()
+            ) ?: run {
+                YLog.error("$TAG: unable to get Context from download listener")
+                return@intercept proceed()
+            }
+
+            instance.invokeMethodOnly(
+                packageInstance.commentImageSaveDownloadListener.notifyResult(),
+                context,
+                cpRet
+            )
+
+            if (hasTempFile) {
+                File(fileToSave).delete()
+            }
+
+            null
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to run emoji download completion callback", throwable)
@@ -285,70 +282,73 @@ object CommentEmojiHooker : YukiBaseHooker() {
         }
     }
 
-    private fun installCreateUriHook(): YukiHookCreator.ClassicMemberHooker.Handle? {
+    private fun installCreateUriHook(): YukiHookCreator.MemberHooker<*>.Handle? {
         return packageInstance.ugFileUtils.selfClass?.resolveMethodOrNull(
             packageInstance.ugFileUtils.createUri()
-        )?.hook {
-            after {
-                val uriRet = result as? Uri
-                // original createUri succeeded
-                if (uriRet != null && uriRet != Uri.EMPTY) {
-                    return@after
-                }
-
-                // original createUri failed; build a URI manually via getImageUri
-                val filePath = args[0] as? String
-                if (filePath.isNullOrEmpty()) {
-                    return@after
-                }
-                val fileExt = filePath.substringAfterLast('.', "")
-
-                val fileMimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExt)
-                if (fileMimeType == null) {
-                    YLog.error("$TAG: createUri failed, unable to resolve MIME type")
-                    return@after
-                } else if (
-                    !(fileMimeType.startsWith("image/") || fileMimeType.startsWith("video/"))
-                ) {
-                    YLog.error(
-                        "$TAG: MIME type restricted when invoking createUri: $fileMimeType"
-                    )
-                    return@after
-                }
-
-                val fileName = filePath.substring(filePath.lastIndexOf(File.separator) + 1)
-                // Ensure the virtual path has no leading '/' but strictly retains a trailing '/'.
-                val fileRelPath = filePath.substring(
-                    1,
-                    filePath.lastIndexOf(File.separator) + 1
-                )
-
-                val context = packageInstance.ugFileUtils.selfClass?.getStaticFieldOrNull<Context>(
-                    packageInstance.ugFileUtils.context()
-                ) ?: run {
-                    YLog.error("$TAG: unable to get Context from ugFileUtils")
-                    return@after
-                }
-                val tokenCert = args[3]
-
-                val finalUri = packageInstance.ugFileUtils.selfClass?.invokeStaticMethodOrNull<Uri>(
-                    packageInstance.ugFileUtils.getImageUri(),
-                    context,
-                    fileName,
-                    fileMimeType,
-                    fileRelPath,
-                    tokenCert
-                ) ?: return@after
-                // replace the hook's return value with the URI we just created
-                result = finalUri
-
-                // also write into the caller's out-parameter array
-                @Suppress("UNCHECKED_CAST")
-                val uriArr = args[2] as? Array<Uri> ?: return@after
-                if (uriArr.isNotEmpty()) {
-                    uriArr[0] = finalUri
-                }
+        )?.intercept {
+            val uriRet = proceed<Uri?>()
+            // original createUri succeeded
+            if (uriRet != null && uriRet != Uri.EMPTY) {
+                return@intercept uriRet
             }
+
+            // original createUri failed; build a URI manually via getImageUri
+            val filePath = args[0] as? String
+            if (filePath.isNullOrEmpty()) {
+                return@intercept uriRet
+            }
+            val fileExt = filePath.substringAfterLast('.', "")
+
+            val fileMimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExt)
+            if (fileMimeType == null) {
+                YLog.error("$TAG: createUri failed, unable to resolve MIME type")
+                return@intercept uriRet
+            } else if (
+                !(fileMimeType.startsWith("image/") || fileMimeType.startsWith("video/"))
+            ) {
+                YLog.error(
+                    "$TAG: MIME type restricted when invoking createUri: $fileMimeType"
+                )
+                return@intercept uriRet
+            }
+
+            val fileName = filePath.substring(filePath.lastIndexOf(File.separator) + 1)
+            // ensure the virtual path has no leading '/' but strictly retains a trailing '/'.
+            val fileRelPath = filePath.substring(
+                1,
+                filePath.lastIndexOf(File.separator) + 1
+            )
+
+            val context = packageInstance.ugFileUtils.selfClass?.getStaticFieldOrNull<Context>(
+                packageInstance.ugFileUtils.context()
+            ) ?: run {
+                YLog.error("$TAG: unable to get Context from ugFileUtils")
+                return@intercept uriRet
+            }
+            val tokenCert = args[3]
+
+            val finalUri = packageInstance.ugFileUtils.selfClass?.invokeStaticMethodOrNull<Uri>(
+                packageInstance.ugFileUtils.getImageUri(),
+                context,
+                fileName,
+                fileMimeType,
+                fileRelPath,
+                tokenCert
+            ) ?: run {
+                YLog.error("$TAG: failed to create URI for $fileName")
+                return@intercept uriRet
+            }
+
+            // replace the hook's return value with the URI we just created
+            args.firstNotNullOfOrNull {
+                @Suppress("UNCHECKED_CAST")
+                it as? Array<Uri>
+            }?.takeIf {
+                it.isNotEmpty()
+            }?.let {
+                it[0] = finalUri
+            }
+            finalUri
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to build URI for image or video", throwable)

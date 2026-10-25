@@ -1,6 +1,6 @@
 package io.github.twyora.douyinenhancer.hook.comment
 
-import com.highcapable.yukihookapi.extension.kavaref.hook
+import com.highcapable.yukihookapi.extension.kavaref.intercept
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
@@ -27,18 +27,16 @@ object CommentImageHooker : YukiBaseHooker() {
 
         packageInstance.commentImageStruct.selfClass?.resolveMethodOrNull(
             packageInstance.commentImageStruct.getDownloadUrl()
-        )?.hook {
-            before {
-                val originUrl = instance.getFieldOrNull<Any?>(
-                    packageInstance.commentImageStruct.originUrl()
-                )
-                if (originUrl != null) {
-                    if (verbose) {
-                        YLog.debug("$TAG: origin url present, override download url with origin url")
-                    }
-                    result = originUrl
+        )?.intercept {
+            val originUrl = instance.getFieldOrNull<Any>(
+                packageInstance.commentImageStruct.originUrl()
+            )?.also {
+                if (verbose) {
+                    YLog.debug("$TAG: origin url present, override download url with origin url")
                 }
             }
+
+            originUrl ?: proceed()
         }?.apply {
             onCallbackFailure { _, throwable ->
                 YLog.error("$TAG: failed to override download url with origin url", throwable)

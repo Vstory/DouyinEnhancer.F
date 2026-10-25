@@ -4,8 +4,8 @@ import com.highcapable.yukihookapi.hook.core.YukiHookCreator
 import com.highcapable.yukihookapi.hook.log.YLog
 
 class HookTransaction(private val tag: String?) {
-    private val hookActions = mutableListOf<Pair<String, () -> YukiHookCreator.ClassicMemberHooker.Handle?>>()
-    private val hookResult = mutableListOf<YukiHookCreator.ClassicMemberHooker.Handle>()
+    private val hookActions = mutableListOf<Pair<String, () -> YukiHookCreator.MemberHooker<*>.Handle?>>()
+    private val hookResult = mutableListOf<YukiHookCreator.MemberHooker<*>.Handle>()
 
     private fun rollback() {
         hookResult.asReversed().forEachIndexed { index, result ->
@@ -26,7 +26,7 @@ class HookTransaction(private val tag: String?) {
         hookResult.clear()
     }
 
-    fun add(name: String, action: () -> YukiHookCreator.ClassicMemberHooker.Handle?) {
+    fun add(name: String, action: () -> YukiHookCreator.MemberHooker<*>.Handle?) {
         hookActions.add(Pair(name, action))
     }
 
