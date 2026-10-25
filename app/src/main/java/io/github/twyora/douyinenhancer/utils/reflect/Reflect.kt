@@ -42,7 +42,7 @@ fun String.toClass(loader: ClassLoader? = null, initialize: Boolean = false): Cl
                 val dimensionCount = Regex("(\\[])+$").find(this)?.value?.length?.div(2) ?: 0
                 var arrayClass = this.substring(0, this.length - dimensionCount * 2).toClass(loader, initialize)
                 repeat(dimensionCount) {
-                    arrayClass = java.lang.reflect.Array.newInstance(arrayClass, 0).javaClass
+                    arrayClass = ArrayClass(arrayClass) as Class<*>
                 }
                 arrayClass
             } else {
