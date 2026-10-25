@@ -28,7 +28,7 @@ object FeedResumeHooker : YukiBaseHooker() {
         packageInstance.baseListFragmentPanel.selfClass?.resolveMethodOrNull(
             packageInstance.baseListFragmentPanel.canPlayOnVideoReady()
         )?.intercept {
-            val playStatus = instance.getFieldOrNull<Any>(
+            val playStatus = instance.getFieldOrNull(
                 packageInstance.baseListFragmentPanel.mPlayStateHelper()
             )?.getFieldOrNull<Int>(
                 packageInstance.playStatusHelper.playStatus()

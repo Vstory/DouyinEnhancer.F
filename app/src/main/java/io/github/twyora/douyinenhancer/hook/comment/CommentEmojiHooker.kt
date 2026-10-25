@@ -76,18 +76,18 @@ object CommentEmojiHooker : YukiBaseHooker() {
         return packageInstance.saveImageActionItem.selfClass?.resolveMethodOrNull(
             packageInstance.saveImageActionItem.isVisible()
         )?.intercept {
-            val comment = instance.getFieldOrNull<Any>(
+            val comment = instance.getFieldOrNull(
                 packageInstance.commentLongPressItemModel.commentActionParams()
-            )?.getFieldOrNull<Any>(
+            )?.getFieldOrNull(
                 packageInstance.commentActionParams.comment()
             ) ?: run {
                 YLog.error("$TAG: failed to get comment from save image action item")
                 return@intercept proceed()
             }
 
-            val emojiUrls = comment.getFieldOrNull<Any>(
+            val emojiUrls = comment.getFieldOrNull(
                 packageInstance.comment.emoji()
-            )?.getFieldOrNull<Any>(
+            )?.getFieldOrNull(
                 packageInstance.emoji.animateUrl()
             )?.getFieldOrNull<List<String>>(
                 packageInstance.urlModel.urlList()
@@ -115,18 +115,18 @@ object CommentEmojiHooker : YukiBaseHooker() {
         return packageInstance.saveImageActionItem.selfClass?.resolveMethodOrNull(
             packageInstance.saveImageActionItem.onClick()
         )?.intercept {
-            val comment = instance.getFieldOrNull<Any>(
+            val comment = instance.getFieldOrNull(
                 packageInstance.commentLongPressItemModel.commentActionParams()
-            )?.getFieldOrNull<Any>(
+            )?.getFieldOrNull(
                 packageInstance.commentActionParams.comment()
             ) ?: run {
                 YLog.error("$TAG: failed to get comment from ${instance::class.qualifiedName}")
                 return@intercept proceed()
             }
 
-            val emojiUrls = comment.getFieldOrNull<Any>(
+            val emojiUrls = comment.getFieldOrNull(
                 packageInstance.comment.emoji()
-            )?.getFieldOrNull<Any>(
+            )?.getFieldOrNull(
                 packageInstance.emoji.animateUrl()
             )?.getFieldOrNull<List<String>>(
                 packageInstance.urlModel.urlList()
@@ -247,15 +247,15 @@ object CommentEmojiHooker : YukiBaseHooker() {
                 saveFilePath,
                 false,
                 null,
-                instance.getFieldOrNull<Any>(
+                instance.getFieldOrNull(
                     packageInstance.commentImageSaveDownloadListener.listenerProviderParam()
-                )?.getFieldOrNull<Any>(
+                )?.getFieldOrNull(
                     packageInstance.listenerProviderParam.cert()
                 )
             )
 
             // shows success dialog
-            val context = instance.getFieldOrNull<Any>(
+            val context = instance.getFieldOrNull(
                 packageInstance.commentImageSaveDownloadListener.listenerProviderParam()
             )?.getFieldOrNull<Context>(
                 packageInstance.listenerProviderParam.context()
@@ -370,7 +370,7 @@ object CommentEmojiHooker : YukiBaseHooker() {
         }
 
         val targetStruct = imageList[0]
-        var urlModel = targetStruct?.getFieldOrNull<Any>(
+        var urlModel = targetStruct?.getFieldOrNull(
             packageInstance.commentImageStruct.downloadUrl()
         )
         if (urlModel == null) {
@@ -384,7 +384,7 @@ object CommentEmojiHooker : YukiBaseHooker() {
     }
 
     private fun convertMedia2Gif(mediaPath: String, gifPath: String): Boolean {
-        val heifImage = packageInstance.heifImage.selfClass?.invokeStaticMethodOrNull<Any>(
+        val heifImage = packageInstance.heifImage.selfClass?.invokeStaticMethodOrNull(
             packageInstance.heifImage.create(),
             File(mediaPath).readBytes()
         )
@@ -423,7 +423,7 @@ object CommentEmojiHooker : YukiBaseHooker() {
 
             GifEncoder(SystemFileSystem.sink(Path(gifPath)).buffered()).use { gifEncoder ->
                 for (i in 0 until frameCount) {
-                    val heifFrame = heifImage.invokeMethodOrNull<Any>(
+                    val heifFrame = heifImage.invokeMethodOrNull(
                         packageInstance.heifImage.getFrame(),
                         i
                     )

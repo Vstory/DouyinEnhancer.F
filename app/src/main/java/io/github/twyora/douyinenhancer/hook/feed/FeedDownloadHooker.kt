@@ -56,14 +56,14 @@ object FeedDownloadHooker : YukiBaseHooker() {
                 )
                 return@intercept null
             }
-            val actionStatus = actionCheckResult.getFieldOrNull<Any>(
+            val actionStatus = actionCheckResult.getFieldOrNull(
                 packageInstance.actionCheckResult.actionStatus()
             ) ?: run {
                 YLog.warn("$TAG: action status is null")
                 return@intercept actionCheckResult
             }
 
-            val normalStatus = packageInstance.actionStatus.selfClass?.getStaticFieldOrNull<Any>(
+            val normalStatus = packageInstance.actionStatus.selfClass?.getStaticFieldOrNull(
                 packageInstance.actionStatus.normal()
             )
 
@@ -106,7 +106,7 @@ object FeedDownloadHooker : YukiBaseHooker() {
                 if (verbose) {
                     YLog.debug("$TAG: resetting aweme download status from $downloadStatus to 0 to allow download")
                 }
-                aweme.getFieldOrNull<Any>(
+                aweme.getFieldOrNull(
                     packageInstance.aweme.status()
                 )?.setFieldOrNull(
                     packageInstance.awemeStatus.downloadStatus(),
@@ -146,7 +146,7 @@ object FeedDownloadHooker : YukiBaseHooker() {
                 return@intercept proceed()
             }
 
-            packageInstance.rxObservable.selfClass?.invokeStaticMethodOrNull<Any>(
+            packageInstance.rxObservable.selfClass?.invokeStaticMethodOrNull(
                 packageInstance.rxObservable.just(),
                 response
             ) ?: run {

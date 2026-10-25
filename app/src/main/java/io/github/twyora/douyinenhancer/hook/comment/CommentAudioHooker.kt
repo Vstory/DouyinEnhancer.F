@@ -67,11 +67,11 @@ object CommentAudioHooker : YukiBaseHooker() {
             }
 
             // if the comment contains audio, show the save image button
-            val commentAudio = instance.getFieldOrNull<Any>(
+            val commentAudio = instance.getFieldOrNull(
                 packageInstance.commentLongPressItemModel.commentActionParams()
-            )?.getFieldOrNull<Any>(
+            )?.getFieldOrNull(
                 packageInstance.commentActionParams.comment()
-            )?.getFieldOrNull<Any>(
+            )?.getFieldOrNull(
                 packageInstance.comment.commentAudio()
             )?.also {
                 if (verbose) {
@@ -106,9 +106,9 @@ object CommentAudioHooker : YukiBaseHooker() {
 
             args.firstOrNull {
                 packageInstance.comment.selfClass?.isInstance(it) == true
-            }?.getFieldOrNull<Any>(
+            }?.getFieldOrNull(
                 packageInstance.commentActionParams.comment()
-            )?.getFieldOrNull<Any>(
+            )?.getFieldOrNull(
                 packageInstance.comment.commentAudio()
             )?.also {
                 if (verbose) {
@@ -130,16 +130,16 @@ object CommentAudioHooker : YukiBaseHooker() {
         return packageInstance.saveImageActionItem.selfClass?.resolveMethodOrNull(
             packageInstance.saveImageActionItem.onClick()
         )?.intercept {
-            val comment = instance.getFieldOrNull<Any>(
+            val comment = instance.getFieldOrNull(
                 packageInstance.commentLongPressItemModel.commentActionParams()
-            )?.getFieldOrNull<Any>(
+            )?.getFieldOrNull(
                 packageInstance.commentActionParams.comment()
             ) ?: run {
                 YLog.error("$TAG: failed to get comment from save image action item")
                 return@intercept proceed()
             }
 
-            val commentAudioContent = comment.getFieldOrNull<Any>(
+            val commentAudioContent = comment.getFieldOrNull(
                 packageInstance.comment.commentAudio()
             )?.getFieldOrNull<String>(
                 packageInstance.commentAudioStruct.content()
@@ -216,7 +216,7 @@ object CommentAudioHooker : YukiBaseHooker() {
                 return@intercept proceed()
             }
 
-            val context = instance.getFieldOrNull<Any>(
+            val context = instance.getFieldOrNull(
                 packageInstance.commentImageSaveDownloadListener.listenerProviderParam()
             )?.getFieldOrNull<Context>(
                 packageInstance.listenerProviderParam.context()
@@ -238,9 +238,9 @@ object CommentAudioHooker : YukiBaseHooker() {
                 targetFileName,
                 ftypeInfo.mimeType,
                 "Music/douyin/audio",
-                instance.getFieldOrNull<Any>(
+                instance.getFieldOrNull(
                     packageInstance.commentImageSaveDownloadListener.listenerProviderParam()
-                )?.getFieldOrNull<Any>(
+                )?.getFieldOrNull(
                     packageInstance.listenerProviderParam.cert()
                 )
             )?.takeIf {
@@ -295,7 +295,7 @@ object CommentAudioHooker : YukiBaseHooker() {
             existingImageUrlList
         }
 
-        val existingImageUrlModel = imageUrlList.first()?.getFieldOrNull<Any?>(
+        val existingImageUrlModel = imageUrlList.first()?.getFieldOrNull(
             packageInstance.commentImageStruct.downloadUrl()
         )
         val imageUrlModel = if (existingImageUrlModel == null) {

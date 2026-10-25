@@ -81,7 +81,7 @@ object RecommendedFeedHooker : YukiBaseHooker() {
                     // begin unvalidated filter condition
                     (blockAd.value && it?.invokeMethodOrNull<Boolean>(packageInstance.aweme.getAd()) == true) ||
                         (blockEcom.value && it?.invokeMethodOrNull<Boolean>(packageInstance.aweme.isEcomAweme()) == true) ||
-                        (blockGrouponLargeCard.value && it?.getFieldOrNull<Any>(packageInstance.aweme.grouponLargeCard()) != null) ||
+                        (blockGrouponLargeCard.value && it?.getFieldOrNull(packageInstance.aweme.grouponLargeCard()) != null) ||
                         (blockLive.value && it?.invokeMethodOrNull<Boolean>(packageInstance.aweme.isLive()) == true) ||
                         (blockMultiImage.value && it?.invokeMethodOrNull<Boolean>(packageInstance.aweme.isMultiImage()) == true) ||
                         // end unvalidated filter condition
@@ -143,7 +143,7 @@ object RecommendedFeedHooker : YukiBaseHooker() {
             return false
         }
 
-        val statsObj = aweme.getFieldOrNull<Any>(packageInstance.aweme.statistics())
+        val statsObj = aweme.getFieldOrNull(packageInstance.aweme.statistics())
             ?: return false
 
         if (ConfigManager.recommendedFeedFilter.collectCountMin.value <= ConfigManager.recommendedFeedFilter.collectCountMax.value) {
@@ -205,7 +205,7 @@ object RecommendedFeedHooker : YukiBaseHooker() {
 
         val uidFilters = ConfigManager.recommendedFeedFilter.authorUidKeywords.value
         if (uidFilters.isNotEmpty()) {
-            val authorObj = aweme.getFieldOrNull<Any>(packageInstance.aweme.author())
+            val authorObj = aweme.getFieldOrNull(packageInstance.aweme.author())
             if (authorObj != null) {
                 val uid = authorObj.getFieldOrNull<String>(packageInstance.user.uid())
                 if (uid != null && uid in uidFilters) {
@@ -216,7 +216,7 @@ object RecommendedFeedHooker : YukiBaseHooker() {
 
         val nicknameRegexes = kwdFilterAuthorNicknameRegexes
         if (nicknameRegexes.isNotEmpty()) {
-            val authorObj = aweme.getFieldOrNull<Any>(packageInstance.aweme.author())
+            val authorObj = aweme.getFieldOrNull(packageInstance.aweme.author())
             if (authorObj != null) {
                 val nickname = authorObj.getFieldOrNull<String>(packageInstance.user.nickname())
                 if (!nickname.isNullOrBlank() && nicknameRegexes.any {

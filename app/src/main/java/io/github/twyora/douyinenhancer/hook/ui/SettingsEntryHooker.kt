@@ -83,7 +83,7 @@ object SettingsEntryHooker : YukiBaseHooker() {
                 packageInstance.commonItemView.setLeftIcon(),
                 R.drawable.ic_module_settings
             )
-            moduleSettingsCommonItemView.invokeMethodOrNull<Unit>(
+            moduleSettingsCommonItemView.invokeMethodOnly(
                 packageInstance.commonItemView.setRightUIMode(),
                 0 // arrow mode for the right UI element
             )

@@ -28,7 +28,7 @@ object CommentImageHooker : YukiBaseHooker() {
         packageInstance.commentImageStruct.selfClass?.resolveMethodOrNull(
             packageInstance.commentImageStruct.getDownloadUrl()
         )?.intercept {
-            val originUrl = instance.getFieldOrNull<Any>(
+            val originUrl = instance.getFieldOrNull(
                 packageInstance.commentImageStruct.originUrl()
             )?.also {
                 if (verbose) {
