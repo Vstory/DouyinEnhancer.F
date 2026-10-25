@@ -52,7 +52,7 @@ object FeedMultiImageHooker : YukiBaseHooker() {
         return packageInstance.downloadAction.selfClass?.resolveMethodOrNull(
             packageInstance.downloadAction.startDownload()
         )?.intercept {
-            val aweme = instance.getFieldOrNull<Any>(
+            val aweme = instance.getFieldOrNull(
                 packageInstance.downloadAction.aweme()
             ) ?: run {
                 YLog.error("$TAG: aweme not found in download action")
@@ -104,10 +104,10 @@ object FeedMultiImageHooker : YukiBaseHooker() {
                 }
 
                 // also replace the video's download URL when the post has a video
-                imageStruct.getFieldOrNull<Any>(
+                imageStruct.getFieldOrNull(
                     packageInstance.imageUrlStruct.video()
                 )?.let { video ->
-                    video.invokeMethodOrNull<Any>(
+                    video.invokeMethodOrNull(
                         packageInstance.video.getPlayAddr()
                     )?.let { playAddr ->
                         video.setFieldOrNull(
@@ -315,7 +315,7 @@ object FeedMultiImageHooker : YukiBaseHooker() {
             return false
         }
 
-        val bitmap = packageInstance.heif.selfClass?.invokeStaticMethodOrNull<Any>(
+        val bitmap = packageInstance.heif.selfClass?.invokeStaticMethodOrNull(
             packageInstance.heif.toRgba(),
             /* vvicBytes = */
             imageBytes,
@@ -347,7 +347,7 @@ object FeedMultiImageHooker : YukiBaseHooker() {
             -1,
             /* fixVvicDecode = */
             true
-        )?.invokeMethodOrNull<Any>(
+        )?.invokeMethodOrNull(
             packageInstance.heifData.newBitmap(),
             null,
             Bitmap.Config.ARGB_8888

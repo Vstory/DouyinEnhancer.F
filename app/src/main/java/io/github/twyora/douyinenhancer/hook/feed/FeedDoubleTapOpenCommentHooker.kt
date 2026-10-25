@@ -33,7 +33,7 @@ object FeedDoubleTapOpenCommentHooker : YukiBaseHooker() {
         )?.intercept {
             val result = proceed()
 
-            val aweme = instance.invokeMethodOrNull<Any>(
+            val aweme = instance.invokeMethodOrNull(
                 packageInstance.baseListFragmentPanel.getCurrentAweme()
             ) ?: run {
                 YLog.error("$TAG: unable to get current aweme")

@@ -35,9 +35,9 @@ object FeedVideoHooker : YukiBaseHooker() {
                 return@intercept proceed()
             }
 
-            aweme.invokeMethodOrNull<Any>(
+            aweme.invokeMethodOrNull(
                 packageInstance.aweme.getVideo()
-            )?.invokeMethodOrNull<Any>(
+            )?.invokeMethodOrNull(
                 packageInstance.video.getPlayAddr()
             )?.also {
                 if (verbose) {
