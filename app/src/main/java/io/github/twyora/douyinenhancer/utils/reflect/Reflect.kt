@@ -157,7 +157,11 @@ fun Class<*>.invokeStaticMethod(method: Method, vararg args: Any?): Any? = this.
 inline fun <reified T> Class<*>.invokeStaticMethodOrNull(method: Method, vararg args: Any?): T? =
     invokeStaticMethodOrNull(method, *args) as? T?
 
-fun Class<*>.invokeStaticMethodOrNull(method: Method, vararg args: Any?): Any? = this.resolveMethodOrNull(method)?.invoke(*args)
+fun Class<*>.invokeStaticMethodOrNull(method: Method, vararg args: Any?): Any? = runCatching {
+    invokeStaticMethod(method, *args)
+}.onFailure {
+    YLog.error("failed to invoke static method: ${this.name}.${method.name}(${method.parameters})", it)
+}.getOrNull()
 
 @JvmName("invokeStaticMethodTyped")
 inline fun <reified T> KClass<*>.invokeStaticMethod(method: Method, vararg args: Any?): T? = invokeStaticMethod(method, *args) as T?
@@ -168,7 +172,11 @@ fun KClass<*>.invokeStaticMethod(method: Method, vararg args: Any?): Any? = this
 inline fun <reified T> KClass<*>.invokeStaticMethodOrNull(method: Method, vararg args: Any?): T? =
     invokeStaticMethodOrNull(method, *args) as? T?
 
-fun KClass<*>.invokeStaticMethodOrNull(method: Method, vararg args: Any?): Any? = this.java.invokeStaticMethodOrNull(method, *args)
+fun KClass<*>.invokeStaticMethodOrNull(method: Method, vararg args: Any?): Any? = runCatching {
+    invokeStaticMethod(method, *args)
+}.onFailure {
+    YLog.error("failed to invoke static method: ${this.java.name}.${method.name}(${method.parameters})", it)
+}.getOrNull()
 
 @JvmName("invokeMethodTyped")
 inline fun <reified T> Any.invokeMethod(method: Method, vararg args: Any?): T? = invokeMethod(method, *args) as T?
@@ -178,7 +186,11 @@ fun Any.invokeMethod(method: Method, vararg args: Any?): Any? = this.resolveMeth
 @JvmName("invokeMethodOrNullTyped")
 inline fun <reified T> Any.invokeMethodOrNull(method: Method, vararg args: Any?): T? = invokeMethodOrNull(method, *args) as? T?
 
-fun Any.invokeMethodOrNull(method: Method, vararg args: Any?): Any? = this.resolveMethodOrNull(method)?.invoke(*args)
+fun Any.invokeMethodOrNull(method: Method, vararg args: Any?): Any? = runCatching {
+    invokeMethod(method, *args)
+}.onFailure {
+    YLog.error("failed to invoke method: ${this.javaClass.name}.${method.name}(${method.parameters})", it)
+}.getOrNull()
 
 fun Any.invokeMethodOnly(method: Method, vararg args: Any?) {
     this.invokeMethodOrNull(method, *args)
@@ -192,7 +204,11 @@ fun Class<*>.getStaticField(field: Field): Any? = this.resolveField(field).get()
 @JvmName("getStaticFieldOrNullTyped")
 inline fun <reified T> Class<*>.getStaticFieldOrNull(field: Field): T? = getStaticFieldOrNull(field) as? T?
 
-fun Class<*>.getStaticFieldOrNull(field: Field): Any? = this.resolveFieldOrNull(field)?.get()
+fun Class<*>.getStaticFieldOrNull(field: Field): Any? = runCatching {
+    getStaticField(field)
+}.onFailure {
+    YLog.error("failed to get static field: ${this.name}.${field.name}", it)
+}.getOrNull()
 
 @JvmName("getStaticFieldTyped")
 inline fun <reified T> KClass<*>.getStaticField(field: Field): T? = getStaticField(field) as T?
@@ -202,7 +218,11 @@ fun KClass<*>.getStaticField(field: Field): Any? = this.java.getStaticField(fiel
 @JvmName("getStaticFieldOrNullTyped")
 inline fun <reified T> KClass<*>.getStaticFieldOrNull(field: Field): T? = getStaticFieldOrNull(field) as? T?
 
-fun KClass<*>.getStaticFieldOrNull(field: Field): Any? = this.java.getStaticFieldOrNull(field)
+fun KClass<*>.getStaticFieldOrNull(field: Field): Any? = runCatching {
+    getStaticField(field)
+}.onFailure {
+    YLog.error("failed to get static field: ${this.java.name}.${field.name}", it)
+}.getOrNull()
 
 @JvmName("getFieldTyped")
 inline fun <reified T> Any.getField(field: Field): T? = getField(field) as T?
@@ -212,7 +232,11 @@ fun Any.getField(field: Field): Any? = this.resolveField(field).get()
 @JvmName("getFieldOrNullTyped")
 inline fun <reified T> Any.getFieldOrNull(field: Field): T? = getFieldOrNull(field) as? T?
 
-fun Any.getFieldOrNull(field: Field): Any? = this.resolveFieldOrNull(field)?.get()
+fun Any.getFieldOrNull(field: Field): Any? = runCatching {
+    getField(field)
+}.onFailure {
+    YLog.error("failed to get field: ${this.javaClass.name}.${field.name}", it)
+}.getOrNull()
 
 fun Class<*>.setStaticField(field: Field, value: Any?) = this.resolveField(field).set(value)
 
