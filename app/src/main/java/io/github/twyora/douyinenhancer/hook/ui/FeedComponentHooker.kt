@@ -7,7 +7,7 @@ import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.hook.DouyinPackage
 import io.github.twyora.douyinenhancer.hook.HookOnMainProcess
-import io.github.twyora.douyinenhancer.utils.reflect.getStaticField
+import io.github.twyora.douyinenhancer.utils.reflect.getStaticFieldOrNull
 import io.github.twyora.douyinenhancer.utils.reflect.resolveMethodOrNull
 
 @HookOnMainProcess
@@ -17,7 +17,7 @@ object FeedComponentHooker : YukiBaseHooker() {
     private val packageInstance
         get() = DouyinPackage.instance
 
-    private val blockComponentIds by lazy {
+    private val blockComponentItems by lazy {
         val config = ConfigManager.playbackComponentBlock
         listOf(
             config.musicCoverBlock.value to packageInstance.fluxComponentId.musicCoverBlock(),
@@ -79,8 +79,8 @@ object FeedComponentHooker : YukiBaseHooker() {
             config.aigcCocreateStatusTitle.value to packageInstance.fluxComponentId.aigcCocreateStatusTitle()
         ).filter {
             it.first
-        }.map {
-            it.second
+        }.mapNotNull {
+            packageInstance.fluxComponentId.selfClass?.getStaticFieldOrNull(it.second)
         }.toSet()
     }
 
@@ -97,11 +97,7 @@ object FeedComponentHooker : YukiBaseHooker() {
             packageInstance.fluxComponentDataAction.getSet()
         )?.intercept {
             proceed<MutableSet<*>>()?.apply {
-                removeAll(
-                    blockComponentIds.mapNotNull { field ->
-                        packageInstance.fluxComponentId.selfClass?.getStaticField(field)
-                    }.toSet()
-                )
+                removeAll(blockComponentItems)
             }
         }?.apply {
             onCallbackFailure { _, throwable ->
