@@ -10,6 +10,7 @@
 #     改写，仓库源码保持与上游一致 —— 身份值落库会让每次同步上游都撞冲突
 #   · 上游的「启动验证弹窗」（要求输入模块下载地址）由同一脚本把 VerifyDialog.shouldVerify
 #     改成恒 false 而停用；不改源码里的调用点，上游合并时不会冲突
+#   · 显示名只**追加**后缀 `.F`（英文 `Douyin Enhancer.F` / 中文 `抖柚.F`），不换名字
 #   · 版本号在 gradle.properties（`project.versionName=` / `project.versionCode=`），不是 build.gradle.kts
 #   · 无裸 release 变体：tier 维度下有 CI / App 两个 flavor ⇒ 构建 `:app:assembleCIRelease`
 #     （CI 渠道是测试渠道，只出 CI flavor；App flavor 是正式包）
@@ -68,7 +69,10 @@ env:
   # ════════════════════════ PROJECT-CUSTOM-BEGIN ════════════════════════
   # fork 身份：产物名前缀 / 显示名 / 门禁三处同源，改 label 一处即全变（见 scripts/ci-fork-identity.py）。
   #   名字进文件名与下载 URL ⇒ label 只允许 A-Za-z0-9._-（中文名与括号在此会变成 URL 不友好字符）。
+  # 产物名前缀（去空格的显示名）——只进文件名与下载 URL
   FORK_LABEL: DouyinEnhancer.F
+  # 显示名后缀：每个 locale 的 app_name 末尾追加它（英文 → `Douyin Enhancer.F`，中文 → `抖柚.F`）
+  LABEL_SUFFIX: .F
   # fork 包名：与上游 io.github.twyora.douyinenhancer 并存安装、可对照跑同一版本。
   EXPECT_PACKAGE: io.github.twyora.douyinenhancer.fork
   # namespace（= 源码类包）：门禁用 dex 里的 `…/ui/MainActivity;` 钉住它没被改写
@@ -116,12 +120,9 @@ jobs:
       - name: Apply fork identity (workspace only, not committed)
         run: |
           set -euo pipefail
-          python3 scripts/ci-fork-identity.py --app-id "$EXPECT_PACKAGE" --label "$FORK_LABEL"
+          python3 scripts/ci-fork-identity.py --app-id "$EXPECT_PACKAGE" --label "$FORK_LABEL" \
+            --label-suffix "$LABEL_SUFFIX"
 
-      # 源码层静态检查（秒级）刻意排在**编译之前**：这类错编译期看不见（取值函数的实参是
-      #   `Any`，类型与个数都不查）、单测也看不见（无 Android 资源表），只在真机点进那一屏时
-      #   抛 IllegalFormatConversionException。早失败能省下几分钟构建。
-      #   脚本由脚手架复制进项目（母版：100_System/templates/check_string_format_args.py）。
       - name: Set up JDK
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
@@ -366,13 +367,14 @@ jobs:
             [ -n "$PKG_LINE" ] || { echo "::error::$NAME 读不到 badging 的 package 行"; exit 1; }
             printf '%s' "$PKG_LINE" | grep -Fq "name='${EXPECT_PACKAGE}'" \
               || { echo "::error::$NAME 包名不是 ${EXPECT_PACKAGE}：$PKG_LINE"; exit 1; }
-            # 显示名必须**每个 locale** 都是 fork 名：只改 values/strings.xml 时，中文设备仍显示
-            #   上游中文名（values-zh-rCN 里另有一份 app_name），安装器界面就像装错了包。
+            # 显示名在**每个 locale** 都必须带 fork 后缀：只改 values/strings.xml 时，中文设备仍显示
+            #   上游原名（values-zh-rCN 里另有一份 app_name），安装器界面就像装错了包。
+            #   只钉「追加过后缀」，不复述各 locale 的字面量 —— 名字是上游的资产，fork 只加标识。
             LABEL_LINES="$(printf '%s' "$BADGING" | grep '^application-label' || true)"
             [ -n "$LABEL_LINES" ] || { echo "::error::$NAME 读不到 badging 的 application-label 行"; exit 1; }
-            BAD_LABEL="$(printf '%s\n' "$LABEL_LINES" | grep -vF "'${FORK_LABEL}'" | head -1 || true)"
-            [ -z "$BAD_LABEL" ] || { echo "::error::$NAME 有 locale 的显示名不是 ${FORK_LABEL}：$BAD_LABEL"; exit 1; }
-            echo "  ✅ 包名 ${EXPECT_PACKAGE} / 显示名 ${FORK_LABEL}（$(printf '%s\n' "$LABEL_LINES" | wc -l) 个 locale）"
+            BAD_LABEL="$(printf '%s\n' "$LABEL_LINES" | grep -vF "${LABEL_SUFFIX}'" | head -1 || true)"
+            [ -z "$BAD_LABEL" ] || { echo "::error::$NAME 有 locale 的显示名没带 ${LABEL_SUFFIX}：$BAD_LABEL"; exit 1; }
+            echo "  ✅ 包名 ${EXPECT_PACKAGE} / $(printf '%s\n' "$LABEL_LINES" | wc -l) 个 locale 的显示名都带 ${LABEL_SUFFIX}"
 
             # ① libxposed 三件套 —— 缺任何一个，LSPosed 都不会把 APK 认成模块
             MISSING=""
