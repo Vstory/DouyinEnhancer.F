@@ -1,0 +1,570 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# CI 滚动发布工作流模板（跨语言共享 · 填空即用）
+# TEMPLATE_VERSION=1.0.4    # 模板版本号（模板内容变更时 bump；勿删）
+# ── action 引用（规则：工程域/脚本编写规则流程.md §CI 工作流）──
+#   uses 一律钉完整 40 位 SHA，禁 @vN / @main；行尾留 `# vX.Y.Z`。
+#   升级前按规程核对「最新」与「安全」两件事 —— 构建绿不等于安全。
+#   当前定版：checkout v7.0.1 / setup-java v6.1.0 / cache v6.1.0 / upload-artifact v7.0.2
+#   （项目另加 setup-go 之类步骤时，一并在此行续记版本）
+#   配套：100_System/templates/refresh_ci_page.sh（页面刷新器）
+#   规程：100_System/workflows/子流程/通用规范流程/GitHub域/CI滚动发布页流程.md
+#
+# 用法：复制到项目 .github/workflows/ 下 → 只改「PROJECT-CUSTOM」块与 on: 的 paths-ignore
+#   → 把 refresh_ci_page.sh 复制到项目 scripts/ 并 chmod +x → 配 4 个签名 secret。
+#   前置条件见同目录 README.md「CI 滚动发布页」小节。
+#
+# ── 本项目（DouyinEnhancer.F）相对模板的差异，均因工程骨架不同，勿改回 ──
+#   · fork 身份（包名 / 显示名 / Gradle 产物名前缀）在 CI 工作区由 scripts/ci-fork-identity.py
+#     改写，仓库源码保持与上游一致 —— 身份值落库会让每次同步上游都撞冲突
+#   · 上游的「启动验证弹窗」（要求输入模块下载地址）由同一脚本把 VerifyDialog.shouldVerify
+#     改成恒 false 而停用；不改源码里的调用点，上游合并时不会冲突
+#   · 版本号在 gradle.properties（`project.versionName=` / `project.versionCode=`），不是 build.gradle.kts
+#   · 无裸 release 变体：tier 维度下有 CI / App 两个 flavor ⇒ 构建 `:app:assembleCIRelease`
+#     （滚动页是测试渠道，只出 CI flavor；App flavor 是正式包）
+#   · 产物路径由 flavor 决定（app/build/outputs/apk/CI/release/），名字由 androidComponents 定制
+#   · 签名经 gropify 从**环境变量** KEYSTORE_PATH / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD 读取，
+#     模板默认写的 local.properties `storeFile=` 等键名它不认
+#   · CI flavor 自带版本后缀 `<versionName>-CI.<短号7位>`、versionCode+1 ⇒ 门禁按此断言
+# ══════════════════════════════════════════════════════════════════════════════
+name: Build · CI · Release
+
+# 任意分支 push 都出包（只出 release 变体），发进固定 tag 的**同一个滚动页**，
+# 产物按时间戳追加、页面永不新增。分支本来就是用来试的 ⇒ 每次提交都该能立刻拿到包。
+# 多分支并发共用这一页（不设并发锁）—— 页面只有一张表，每个包一行，不按分支分页。
+# 需要排查用的 debuggable 包时，改用 build-ci-debug 模板，或本文件临时 dispatch。
+run-name: "Build · CI · Release · ${{ github.ref_name }}"
+
+on:
+  push:
+    # ⚠️ 必须显式写 branches：只写 paths-ignore 时**标签推送也会触发**（发版工作流建的 tag
+    #   会反手把 CI 跑一遍）。`[ '**' ]` 只匹配分支，恰好把标签挡在外面。
+    branches: ['**']
+    paths-ignore:            # ← 按项目改：纯文档/数据文件改动不必出包
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - 'docs/**'
+      - '.github/**'
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: '构建变体（本模板只出 release）'
+        type: choice
+        options:
+          - release
+        default: release
+        required: true
+
+# 并发：**不设并发锁** —— 每次 push 都独立出包，任意分支、任意次数都同时构建（要的是
+#   「推了就有包」；排队等前一次跑完、或同分支新推取消旧跑，都会让人拿不到自己那次的产物）。
+# 页面写入的并发安全因此不靠串行，改由三件事共同保证（见 Publish / Refresh 两步）：
+#   幂等创建 + 资产名天然唯一 + 正文全量重建。任何交错都收敛到同一稳态（页面 = 最新 N 组）。
+
+permissions:
+  contents: write   # 发布 Release 需要写权限
+
+env:
+  # ════════════════════════ PROJECT-CUSTOM-BEGIN ════════════════════════
+  # fork 身份：产物名前缀 / 显示名 / 门禁三处同源，改 label 一处即全变（见 scripts/ci-fork-identity.py）。
+  #   名字进文件名与下载 URL ⇒ label 只允许 A-Za-z0-9._-（中文名与括号在此会变成 URL 不友好字符）。
+  FORK_LABEL: DouyinEnhancer.F
+  # fork 包名：与上游 io.github.twyora.douyinenhancer 并存安装、可对照跑同一版本。
+  #   EXPECT_ACTIVITY 钉的是 **namespace 没被动过**：类包一旦被改，manifest 里 `.ui.MainActivity`
+  #   这类相对名会解析到不存在的类，产物能装却一开就崩。
+  EXPECT_PACKAGE: io.github.twyora.douyinenhancer.fork
+  EXPECT_ACTIVITY: io.github.twyora.douyinenhancer.ui.MainActivityAlias
+  # 版本号来源文件：脚本用 sed 取**第一处** versionName / versionCode（本项目在 gradle.properties，
+  #   键名带 project. 前缀，故 Resolve APK name 里的正则按此改写）
+  VERSION_FILE: gradle.properties
+  # 滚动页：固定 tag + 页面标题 + 保留组数
+  CI_TAG: ci
+  CI_TITLE: DouyinEnhancer CI Build
+  KEEP_GROUPS: '6'
+  # 页面刷新器（复制自 100_System/templates/refresh_ci_page.sh）
+  REFRESH_SCRIPT: scripts/ci-refresh-page.sh
+  # 构建环境
+  JAVA_VERSION: '21'
+  ANDROID_PLATFORM: android-37.0
+  BUILD_TOOLS: 37.0.0
+  # 产物门禁：module.prop 的 targetApiVersion / 固定密钥的证书指纹（SHA-256 大写无冒号，
+  #   取法 keytool -list -v 里的 SHA256，去冒号转大写）/ 变体产物目录
+  #   （本项目产物名由 androidComponents 定制为 DouyinEnhancer_<versionName>.apk ⇒ 按目录取文件）
+  EXPECT_TARGET_API: '102'
+  EXPECTED_CERT_SHA256: '8D1B6022D3E3BB837A3BA1870E0EEAC8650F9470B8287EDF549DACEC9E9E2A64'
+  APK_DIR_DEBUG: app/build/outputs/apk/CI/debug
+  APK_DIR_RELEASE: app/build/outputs/apk/CI/release
+  # push 触发时构建哪些变体（本模板固定只出 release；两个都出用 build-ci-both）
+  PUSH_VARIANT: release
+  # 源码层静态检查（scripts/check_string_format_args.py，脚手架已复制进项目）
+  #   项目自有「取资源」包装函数，空格分隔（例：UiText.Res）；没有包装就留空
+  STR_RES_CALLS: ''
+  # 项目已做字符串资源化（有 res/values/strings.xml）⇒ 置 1：此时「找不到资源表」从跳过翻成
+  #   失败，否则 res 被改名/移走只会打一行 notice 就放行（门禁看着绿、其实没查）
+  STR_STRICT: ''
+  # ═════════════════════════ PROJECT-CUSTOM-END ═════════════════════════
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    env:
+      # checkout 内部的 `git init` 会为默认分支名打十几行 hint（那个空仓库随即被覆盖，分支名
+      #   不参与构建）。写 ~/.gitconfig 压不住 —— checkout 期间会临时改写 HOME；环境变量等同
+      #   命令行 -c，优先级高于 global。
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: init.defaultBranch
+      GIT_CONFIG_VALUE_0: main
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # AGP 会往 APK 里写 version-control-info；浅克隆下该信息不完整
+
+      # fork 身份只在 CI 工作区改写，仓库源码保持与上游逐字一致 —— 身份值一旦落库，
+      #   每次同步上游都要撞冲突。逐项清单见 scripts/ci-fork-identity.py。
+      #   ⚠️ 改的是 applicationId（最终包名），不动 namespace（R 类与类的全限定名跟它走）。
+      #   ⚠️ 改写不生效必须**失败**：脚本事先逐项校验「期望原文还在」、事后校验「身份值已是目标值」，
+      #      两处任一出问题即红（上游改了写法必须回来同步）；Verify 那步是同内容的第二道闸。
+      - name: Apply fork identity (workspace only, not committed)
+        run: |
+          set -euo pipefail
+          python3 scripts/ci-fork-identity.py --app-id "$EXPECT_PACKAGE" --label "$FORK_LABEL"
+
+      # 源码层静态检查（秒级）刻意排在**编译之前**：这类错编译期看不见（取值函数的实参是
+      #   `Any`，类型与个数都不查）、单测也看不见（无 Android 资源表），只在真机点进那一屏时
+      #   抛 IllegalFormatConversionException。早失败能省下几分钟构建。
+      #   脚本由脚手架复制进项目（母版：100_System/templates/check_string_format_args.py）。
+      - name: Static check (string format args)
+        run: |
+          set -euo pipefail
+          SCRIPT=scripts/check_string_format_args.py
+          if [ ! -f "$SCRIPT" ]; then
+            # 老项目可能还没接这道检查 ⇒ 跳过；但项目既然声明了 STR_STRICT（= 它确实在做
+            #   字符串资源化，这道检查本该常驻），脚本消失就只能是误删/改名 ⇒ 不许静默放行。
+            if [ -n "${STR_STRICT:-}" ]; then
+              echo "::error::未找到 $SCRIPT（项目已声明 STR_STRICT）—— 视为误删/改名，拒绝静默跳过"
+              exit 1
+            fi
+            echo "::notice::未找到 $SCRIPT（母版：100_System/templates/check_string_format_args.py）—— 跳过"
+            exit 0
+          fi
+          # shellcheck disable=SC2086  # STR_RES_CALLS 故意不加引号：按空格拆成多个函数名
+          CALL_ARGS=()
+          for c in ${STR_RES_CALLS:-}; do CALL_ARGS+=(--call "$c"); done
+          python3 "$SCRIPT" ${STR_STRICT:+--strict} "${CALL_ARGS[@]}" .
+
+      - name: Set up JDK
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+
+      # Android SDK：项目要求的具体 platform / build-tools 常不在 runner 镜像里，显式装 + 断言。
+      #   ⚠️ 自 API 37 起平台包名带 minor：装出来的目录是 platforms/android-37.0，而仓库里
+      #   compileSdk 的 minorApiLevel=0 正是让 AGP 按这个名字去找 —— 把它改名成 android-37
+      #   反而找不到；反过来不设 minor 时 AGP 只认 android-37（SDK 里不存在，即上游那个 hash 报错）。
+      - name: Set up Android SDK
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKM="$(command -v sdkmanager || echo "$SDK/cmdline-tools/latest/bin/sdkmanager")"
+          echo "SDK=$SDK"
+          echo "sdkmanager=$SDKM"
+
+          yes | "$SDKM" --licenses >/dev/null 2>&1 || true
+          for pkg in "platforms;${ANDROID_PLATFORM}" "build-tools;${BUILD_TOOLS}"; do
+            "$SDKM" "$pkg" >/dev/null 2>&1 || sudo "$SDKM" "$pkg" >/dev/null 2>&1 \
+              || echo "::warning::$pkg 安装返回非零"
+          done
+
+          # 断言：缺一即在此失败，不留到 Gradle 报含糊错
+          test -f "$SDK/platforms/${ANDROID_PLATFORM}/android.jar" \
+            || { echo "::error::platforms/${ANDROID_PLATFORM} 未就位（AGP 侧 minorApiLevel 要的就是这个名字）"
+                 "$SDKM" --list 2>/dev/null | grep -i "${ANDROID_PLATFORM%%.*}" || true; exit 1; }
+          test -x "$SDK/build-tools/${BUILD_TOOLS}/aapt2" \
+            || { echo "::error::build-tools ${BUILD_TOOLS} 就位失败"; exit 1; }
+          echo "platforms: $(ls "$SDK/platforms" | tr '\n' ' ')"
+          echo "build-tools: $(ls "$SDK/build-tools" | tr '\n' ' ')"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+
+      # 只缓存依赖（caches / wrapper），构建产物与实时数据不进这里
+      #   —— 判据见 GitHub域/CI缓存与构建环境.md
+      - name: Gradle cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Compute build info
+        id: info
+        run: |
+          echo "short=${GITHUB_SHA:0:8}" >> "$GITHUB_OUTPUT"
+          echo "ts=$(TZ=Asia/Shanghai date +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+
+      # tag / 页面名 / **产物名** 集中在这里：产物名被三处引用（重命名 / 正文表格 / 清理正则），
+      #   任一处漏改都是静默错（下载 404、历史列表整段消失、旧资产永不清理）⇒ 只能有一个来源。
+      #   也刻意放在编译之前 —— 解析失败只花几秒。
+      #
+      # 命名：<前缀>_<版本>.<code>_<时间>_ci-<变体>_<短号>.apk
+      #   · 渠道段 `ci-debug` / `ci-release`：下载到手一眼看出不是正式包。
+      #   · 前缀 = FORK_LABEL（fork 显示名），与身份改写、门禁同源；刻意不另设 PREFIX 常量，
+      #     否则改 label 时必有一处漏改，产物名与包内显示名各说各话。
+      - name: Resolve APK name
+        id: target
+        env:
+          TS: ${{ steps.info.outputs.ts }}
+          SHORT: ${{ steps.info.outputs.short }}
+          WANT: ${{ inputs.variant }}
+        run: |
+          set -euo pipefail
+          VER="$(sed -nE 's/^[[:space:]]*project\.versionName=(.*)$/\1/p' "$VERSION_FILE" | head -1)"
+          CODE="$(sed -nE 's/^[[:space:]]*project\.versionCode=([0-9]+).*$/\1/p' "$VERSION_FILE" | head -1)"
+          if [ -z "$VER" ] || [ -z "$CODE" ]; then
+            echo "::error::读不到 versionName/versionCode（$VERSION_FILE 的 project.versionName / project.versionCode）"
+            exit 1
+          fi
+          # 以下两条复刻 app/build.gradle.kts 的 CI flavor 规则（滚动页出的就是这个 flavor）：
+          #   versionName 取 defaultConfig 里 " - "（空格-连字符-空格）之前那段再拼 "-CI.<短号7位>"；
+          #   versionCode 为 +1。上游改了 flavor 规则时这两个断言会红 —— 那是提醒，不是误报。
+          # ⚠️ split 必须先于去空格：去掉空白后 " - " 分隔符就没了，规则会静默失效。
+          VER="$(printf '%s' "$VER" | sed -E 's/[[:space:]]+-[[:space:]].*$//')"
+          CODE=$((CODE + 1))
+          # 版本名可能带空格（如 "2.2.0 Dev 9"），而文件名不允许空格 —— 去掉全部空白
+          VER="$(printf '%s' "$VER" | tr -d '[:space:]')"
+          case "$VER" in
+            ""|*[!A-Za-z0-9._-]*) echo "::error::版本名去空格后仍含非法字符：'$VER'"; exit 1 ;;
+          esac
+
+          # 变体集合。push 事件没有 inputs ⇒ WANT 为空，回落到 PUSH_VARIANT
+          case "${WANT:-$PUSH_VARIANT}" in
+            debug|release) VLIST="${WANT:-$PUSH_VARIANT}" ;;
+            both)          VLIST="debug release" ;;
+            *) echo "::error::非法变体：${WANT}"; exit 1 ;;
+          esac
+
+          {
+            echo "tag=${CI_TAG}"
+            echo "name=${CI_TITLE}"
+            echo "prerelease=true"
+            echo "make_latest=false"
+            echo "variants=${VLIST}"
+            echo "variant_tag=$(printf '%s' "$VLIST" | tr ' ' '-')"
+          } >> "$GITHUB_OUTPUT"
+          for kv in "VER=$VER" "CODE=$CODE" "VARIANT_LIST=$VLIST" "SHORT=$SHORT"; do echo "${kv}" >> "$GITHUB_ENV"; done
+
+          for v in $VLIST; do
+            N="${FORK_LABEL}_${VER}.${CODE}_${TS}_ci-${v}_${SHORT}.apk"
+            echo "APKNAME_$(printf '%s' "$v" | tr '[:lower:]' '[:upper:]')=${N}" >> "$GITHUB_ENV"
+            echo "产物名（${v}）：${N}"
+          done
+
+      # 签名：从仓库 secrets 解码**固定密钥**（各项目共用同一把，见 tokens/Signing/）。
+      #   ⚠️ 4 个 secret 名是配套的一组，改名要同改：本处、发版工作流、
+      #      tokens/Signing/scripts/sync-signing-secrets.py、tokens/Signing/README.md。
+      #   ⚠️ secret 一律经 env 传入、run 里只引用变量名 —— 不把 ${{ secrets.X }} 写进 run 正文：
+      #      值里若含 `$` 或反引号会被 shell 二次展开，且在签名报错前毫无提示。
+      #   ⚠️ 缺 secret 时**直接失败**：不回退 debug 签名 —— 「构建成功、签名不对」要等覆盖安装
+      #      时才发现（覆盖安装会因签名不同而失败，甚至丢掉模块的作用域状态）。
+      - name: Prepare signing (fixed key from secrets)
+        env:
+          KEY_BASE64: ${{ secrets.KEY_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=""
+          for v in KEY_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::缺少签名 secret:$missing —— 拒绝回退（那会让产物无法覆盖升级）"
+            exit 1
+          fi
+
+          KS="$GITHUB_WORKSPACE/ci-signing.jks"
+          printf '%s' "$KEY_BASE64" | base64 -d > "$KS"
+
+          # 就地自检：解出的库能否用该口令打开、别名是否存在。否则「KEY_BASE64 其实是另一个库 /
+          #   口令与 secret 不一致」会拖到 AGP 签名阶段才报错，且信息含糊。
+          keytool -list -keystore "$KS" -storepass:env STORE_PASSWORD -alias "$KEY_ALIAS" >/dev/null 2>&1 \
+            || { echo "::error::密钥库打不开或别名不存在 —— 核对 KEY_BASE64 / SIGNING_STORE_PASSWORD / SIGNING_KEY_ALIAS"; exit 1; }
+          echo "已校验：密钥库可打开、别名存在"
+
+          # 口令与路径经 GITHUB_ENV 传给 Gradle：本项目经 gropify 从**环境变量**
+          #   KEYSTORE_PATH / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD 读签名配置
+          #   （settings.gradle.kts 的 gropify.buildscript.locations 首位是 SystemEnv）。
+          #   不能沿用模板的 local.properties `storeFile=/storePassword=/keyAlias=/keyPassword=` ——
+          #   gropify 不认这些键名，那样它只会打印 WARN 并回退 debug 签名。
+          {
+            printf 'KEYSTORE_PATH=%s\n' "$KS"
+            printf 'KEYSTORE_PASSWORD=%s\n' "$STORE_PASSWORD"
+            printf 'KEY_ALIAS=%s\n' "$KEY_ALIAS"
+            printf 'KEY_PASSWORD=%s\n' "$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "已按固定密钥配置签名（环境变量注入，gropify 读取）"
+
+      # 本项目不用 -PciVersionSuffix：CI flavor 已把 versionName 拼成 `<版本>-CI.<短号7位>`
+      #   （app/build.gradle.kts 的 CI flavor），同一 versionCode 的多次构建天然可区分。
+      #   变体口径由所选模板固定（只出 release），要换口径换模板文件。
+      - name: Gradle build
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          for v in $VARIANT_LIST; do
+            case "$v" in
+              debug)   ./gradlew --no-daemon :app:assembleCIDebug ;;
+              release) ./gradlew --no-daemon :app:assembleCIRelease ;;
+            esac
+          done
+          ls -la app/build/outputs/apk/CI/*/ || true
+
+      # 只落盘 + 自检：产物名由 Resolve APK name 算出（命名规则的唯一来源）。
+      #   本项目产物名由 androidComponents 定制成 DouyinEnhancer_<versionName>.apk（随 flavor 变），
+      #   故按**目录**取文件，并要求每个变体目录下恰好一个 apk（多出即说明变体口径变了）。
+      - name: Rename APK and assert naming rule
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for v in $VARIANT_LIST; do
+            case "$v" in
+              debug)   DIR="$APK_DIR_DEBUG" ;;
+              release) DIR="$APK_DIR_RELEASE" ;;
+            esac
+            shopt -s nullglob
+            apk_list=("$DIR"/*.apk)
+            shopt -u nullglob
+            [ "${#apk_list[@]}" -eq 1 ] \
+              || { echo "::error::$DIR 下应恰好 1 个 apk，实际 ${#apk_list[@]} 个：${apk_list[*]:-无}"; exit 1; }
+            SRC="${apk_list[0]}"
+            # 签名配置没生效时 AGP 会产 *-unsigned.apk（装不上）—— 这是最该拦下的静默失败
+            case "$SRC" in
+              *-unsigned.apk) echo "::error::产物未签名（$SRC）—— signingConfig 没生效"; exit 1 ;;
+            esac
+            var="APKNAME_$(printf '%s' "$v" | tr '[:lower:]' '[:upper:]')"
+            cp -- "$SRC" "dist/${!var}"
+            echo "产物: dist/${!var} ← $SRC"
+          done
+
+          # 命名自检（拿**实际产出的文件名**校验，不只信规则自洽）
+          # ⚠️ 与 refresh_ci_page.sh 的 NAME_RE 同源，改命名规则必须两处同改
+          RE='^[A-Za-z0-9._-]+_[0-9]{8}-[0-9]{4}_ci-(debug|release)_[0-9a-f]{8}\.apk$'
+          shopt -s nullglob
+          apks=(dist/*.apk)
+          want=$(wc -w <<< "$VARIANT_LIST")
+          [ "${#apks[@]}" -eq "$want" ] || { echo "::error::应产出 $want 个包，实际 ${#apks[@]} 个"; exit 1; }
+          for f in "${apks[@]}"; do
+            B="$(basename "$f")"
+            printf '%s' "$B" | grep -qE "$RE" \
+              || { echo "::error::产物名与规则不符（或含空格/括号/百分号等 URL 不友好字符）: $B"; exit 1; }
+            # 前缀必须是 fork 显示名：两个包同名时人眼分不出装的是哪个 ⇒ 前缀漂回上游名即静默退化
+            case "$B" in
+              "${FORK_LABEL}_"*) ;;
+              *) echo "::error::产物名前缀不是 ${FORK_LABEL}: $B"; exit 1 ;;
+            esac
+          done
+          echo "✅ 命名自检通过"
+          ls -la dist
+
+      # 断言产物真的可用：三件套齐全 + 作用域有效 + **变体正确** + **真的被固定密钥签过**
+      #   + 入口类真在 dex 里 + 版本号未漂移。全是**静默失败模式**（包照样装、照样跑，只是模块
+      #   不生效或版本不对），故必须做成门禁而不是「发布前看一眼」。
+      - name: Verify APK (xposed files + scope + variant + dex entry + signature)
+        run: |
+          set -euo pipefail
+          APKSIGNER="$(command -v apksigner || true)"
+          [ -n "$APKSIGNER" ] || APKSIGNER="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)"
+          [ -n "$APKSIGNER" ] || { echo "::error::找不到 apksigner，无法断言签名 —— 拒绝发布"; exit 1; }
+          AAPT2="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)"
+          [ -n "$AAPT2" ] || { echo "::error::找不到 aapt2（用于读版本与 debuggable 标志）"; exit 1; }
+
+          # 每个产物独立跑全套断言。变体从**文件名**反推（命名规则保证含 `_ci-<变体>_`），
+          #   不依赖构建期变量 ⇒「名字里写的变体」与「包里实际的变体」必须自洽，否则当场红。
+          for APK in dist/*.apk; do
+            NAME="$(basename "$APK")"
+            case "$NAME" in
+              *_ci-debug_*.apk)   VAR=debug ;;
+              *_ci-release_*.apk) VAR=release ;;
+              *) echo "::error::$NAME 无法从文件名判定变体"; exit 1 ;;
+            esac
+            echo "════ 校验 $NAME（$VAR）"
+
+            # fork 身份三项：包名 / 显示名 / 启动类所在的类包。三者都是「能装、能跑，但装的是
+            #   另一个应用」这类静默失败 —— 放最前面查，错了不必等构建几分钟后的门禁。
+            BADGING="$("$AAPT2" dump badging "$APK" 2>/dev/null || true)"
+            PKG_LINE="$(printf '%s' "$BADGING" | grep -m1 "^package:" || true)"
+            [ -n "$PKG_LINE" ] || { echo "::error::$NAME 读不到 badging 的 package 行"; exit 1; }
+            printf '%s' "$PKG_LINE" | grep -Fq "name='${EXPECT_PACKAGE}'" \
+              || { echo "::error::$NAME 包名不是 ${EXPECT_PACKAGE}：$PKG_LINE"; exit 1; }
+            LABEL_LINE="$(printf '%s' "$BADGING" | grep -m1 "^application-label:" || true)"
+            printf '%s' "$LABEL_LINE" | grep -Fq "'${FORK_LABEL}'" \
+              || { echo "::error::$NAME 显示名不是 ${FORK_LABEL}：${LABEL_LINE:-未读到}"; exit 1; }
+            printf '%s' "$BADGING" | grep -Fq "launchable-activity: name='${EXPECT_ACTIVITY}'" \
+              || { echo "::error::$NAME 启动类不是 ${EXPECT_ACTIVITY} —— namespace 是否被改过？"; exit 1; }
+            echo "  ✅ 包名 ${EXPECT_PACKAGE} / 显示名 ${FORK_LABEL} / 启动类 ${EXPECT_ACTIVITY}"
+
+            # ① libxposed 三件套 —— 缺任何一个，LSPosed 都不会把 APK 认成模块
+            MISSING=""
+            for e in META-INF/xposed/java_init.list META-INF/xposed/module.prop META-INF/xposed/scope.list; do
+              unzip -l "$APK" | grep -q "$e" || MISSING="$MISSING $e"
+            done
+            [ -z "$MISSING" ] || { echo "::error::$NAME 缺 libxposed 三件套:$MISSING（LSPosed 不会识别为模块）"; exit 1; }
+            echo "  ✅ META-INF/xposed 三件套齐全"
+
+            # ② 作用域静态声明有效：作用域写在 scope.list；module.prop 的 targetApiVersion 必须匹配
+            #    （本项目作用域走 scope.list，module.prop 里无 staticScope 也需 api 版本匹配）。
+            SCOPE="$(unzip -p "$APK" META-INF/xposed/scope.list | grep -vE '^[[:space:]]*#' | tr -d '[:space:]')"
+            [ -n "$SCOPE" ] || { echo "::error::$NAME 的 scope.list 为空（作用域失效）"; exit 1; }
+            unzip -p "$APK" META-INF/xposed/module.prop | grep -q "^targetApiVersion=${EXPECT_TARGET_API}$" \
+              || { echo "::error::$NAME 的 module.prop 缺 targetApiVersion=${EXPECT_TARGET_API}"; exit 1; }
+            echo "  ✅ 作用域静态声明有效（scope=$SCOPE）"
+            echo "SCOPE=$SCOPE" >> "$GITHUB_ENV"
+
+            # ③ 入口类必须真在 dex 里，且与 java_init.list 写的名字一致。
+            #    LSPosed 按 java_init.list 的名字反射加载 ⇒ 名字对不上（或裁剪/改名）时模块**静默
+            #    不生效**。release 走了 R8 ⇒ 这条是唯一能拦住「proguard-rules 漏 keep」的地方。
+            ENTRY="$(unzip -p "$APK" META-INF/xposed/java_init.list | grep -vE '^[[:space:]]*#' | grep -vE '^[[:space:]]*$' | head -1 | tr -d '[:space:]')"
+            [ -n "$ENTRY" ] || { echo "::error::$NAME 的 java_init.list 里没有入口类"; exit 1; }
+            ENTRY_DESC="L$(printf '%s' "$ENTRY" | tr '.' '/');"
+            FOUND=0
+            for d in $(unzip -l "$APK" | awk '$4 ~ /^classes[0-9]*\.dex$/ {print $4}'); do
+              if unzip -p "$APK" "$d" | grep -qaF "$ENTRY_DESC"; then FOUND=1; break; fi
+            done
+            [ "$FOUND" -eq 1 ] || { echo "::error::$NAME 的入口类 $ENTRY（$ENTRY_DESC）不在任何 dex 里 —— 被裁剪或改名，模块不会加载"; exit 1; }
+            echo "  ✅ 入口类在 dex 中：$ENTRY"
+
+            # ⚠️ 本步骤每个 `VAR="$(... | grep ...)"` 都带 `|| true`：grep 无匹配时返回 1，在
+            #    `bash -e` 下会让赋值语句整体失败 ⇒ 脚本**静默**退出（日志里只剩 "Process
+            #    completed with exit code 1."，看不出是哪条断言挂了）。故一律「先抓、再显式判空报错」。
+            # ④ 版本号必须与源码一致：CI flavor 拼的后缀是 `-CI.<短号7位>`（见 app/build.gradle.kts），
+            #    与产物名里的 8 位短号不同源，别把两者对齐。
+            EXPECT_VN="${VER}-CI.${SHORT:0:7}"
+            printf '%s' "$PKG_LINE" | grep -q "versionCode='${CODE}'" \
+              || { echo "::error::$NAME 的 versionCode 与源码不符（期望 ${CODE}）：$PKG_LINE"; exit 1; }
+            # 用 -F：期望串含 `+` 与 `.`，走正则会被当元字符
+            printf '%s' "$PKG_LINE" | grep -Fq "versionName='${EXPECT_VN}'" \
+              || { echo "::error::$NAME 的 versionName 与源码不符（期望 ${EXPECT_VN}）：$PKG_LINE"; exit 1; }
+            echo "  ✅ 版本号与源码一致：${EXPECT_VN}(${CODE})"
+
+            # ⑤ debuggable 标志必须与文件名里的变体一致 —— 两个方向都要查：
+            #    release 带它 = 日志没裁（非最终形态）；debug 没它 = 排障日志全丢。都是实际错。
+            DBG="$(printf '%s' "$BADGING" | grep -c "^application-debuggable$" || true)"
+            if [ "$VAR" = debug ]; then
+              [ "$DBG" -ge 1 ] || { echo "::error::$NAME 名为 debug 但 badging 无 application-debuggable —— 确认构建用的是 assembleDebug"; exit 1; }
+              echo "  ✅ debug 变体（application-debuggable）"
+            else
+              [ "$DBG" -eq 0 ] || { echo "::error::$NAME 名为 release 但 badging 含 application-debuggable —— 确认构建用的是 assembleRelease"; exit 1; }
+              echo "  ✅ release 变体（非 debuggable）"
+            fi
+
+            # ⑥ 签名有效 + 指纹等于固定密钥
+            OUT="$("$APKSIGNER" verify --print-certs "$APK" 2>&1 || true)"
+            if printf '%s' "$OUT" | grep -qi 'DOES NOT VERIFY\|Missing.*signature\|no signature'; then
+              echo "::error::$NAME 未通过签名校验 —— 拒绝发布"
+              printf '%s\n' "$OUT"
+              exit 1
+            fi
+            # 指纹行格式随 build-tools 版本变化（V2 Signer / V3.0 Signer / Signer #1 …），三种都认；
+            #   上面各行的证书是同一把，故取哪一行都对。
+            DIGEST="$(printf '%s' "$OUT" | sed -nE 's/^.*certificate SHA-256 digest: ([0-9a-fA-F]+).*$/\1/p' | head -1)"
+            [ -n "$DIGEST" ] || { echo "::error::$NAME 读不到签名证书指纹（apksigner 未能解析产物）"; printf '%s\n' "$OUT"; exit 1; }
+            ACTUAL="$(printf '%s' "$DIGEST" | tr -d ':' | tr 'a-f' 'A-F')"
+            if [ "$ACTUAL" != "$EXPECTED_CERT_SHA256" ]; then
+              echo "::error::$NAME 签名指纹与固定密钥不符 —— 拒绝发布（多半是 secrets 没配好，产物用了 debug 签名）"
+              echo "  期望: $EXPECTED_CERT_SHA256"
+              echo "  实际: $ACTUAL"
+              exit 1
+            fi
+            echo "  ✅ 签名有效，指纹与固定密钥一致：$ACTUAL"
+
+            # ⑦ 签名方案：v2 与 v3 都必须在（两个变体共用同一签名配置）。
+            #    ⚠️ 必须带 --min-sdk-version 24：verify 默认按 manifest 的 minSdk 判定，而
+            #       minSdk ≥ 28 时 apksig 视 v2 为冗余、**跳过其验证与上报** ⇒ 报 "v2: false"。
+            #       那是上报语义而非块缺失（实测产物 Signing Block 内 v2 块确实存在，只是没被
+            #       列出来）。钉到 24（v2 起效的最低 API）后两个布尔值才如实反映块的存在。
+            #    不断言 v1：它只服务 Android ≤6.0，minSdk 33 且配置里已显式关闭 ⇒ 断言必误报。
+            VERBOSE="$("$APKSIGNER" verify --verbose --min-sdk-version 24 "$APK" 2>&1 || true)"
+            SCHEMES="v2 v3"
+            for scheme in $SCHEMES; do
+              printf '%s' "$VERBOSE" | grep -qE "Verified using ${scheme} scheme.*: true" \
+                || { echo "::error::$NAME 未启用 ${scheme} 签名方案 —— 拒绝发布"; printf '%s\n' "$VERBOSE"; exit 1; }
+            done
+            echo "  ✅ 签名方案含 v2+v3"
+
+            echo "CERT_SHA256=$ACTUAL" >> "$GITHUB_ENV"
+            echo "SIGN_SCHEMES=${SCHEMES// /+}" >> "$GITHUB_ENV"
+          done
+
+      # 发布到固定 tag 的**同一页**。无并发锁下的写入安全靠三点：
+      #   ① 幂等创建：先查后建，撞上 422（另一运行刚建好）就重查 —— 不再有「同时创建」的竞态；
+      #   ② 资产名含 时间戳 + 短 SHA ⇒ 天然唯一，并发上传互不覆盖；--clobber 让重跑覆盖自己；
+      #   ③ 正文**不由本步写**（见 Refresh），故不存在「正文互相覆盖」。
+      # ⚠️ **不要给 asset 写 label**：GitHub 在 Release 页面用 label **顶替文件名显示**，打了
+      #    label 的包会整行变成 label，看着就像「产物名不对」。
+      - name: Publish to ci release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_TAG: ${{ steps.target.outputs.tag }}
+          REL_NAME: ${{ steps.target.outputs.name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # 页面不存在则建（正文是占位，真正的正文由 Refresh 重建）
+          : > /tmp/empty-notes.md
+          for i in 1 2 3 4 5; do
+            gh release view "$TARGET_TAG" >/dev/null 2>&1 && break
+            gh release create "$TARGET_TAG" \
+              --title "$REL_NAME" --prerelease --latest=false \
+              --notes-file /tmp/empty-notes.md >/dev/null 2>&1 || true
+          done
+          gh release view "$TARGET_TAG" >/dev/null 2>&1 \
+            || { echo "::error::$TARGET_TAG 页不存在且创建失败"; exit 1; }
+
+          gh release upload "$TARGET_TAG" dist/*.apk --clobber >/dev/null
+          echo "已上传：$(ls dist/*.apk | tr '\n' ' ')"
+
+          # 清历史遗留 label（曾一度打过，会把文件名顶掉）：只挑 label 非空的动手，
+          #   正常状态下零 PATCH。幂等，并发重复清同一份无害。
+          gh api --paginate -H "Accept: application/vnd.github+json" \
+            "repos/${REPO}/releases/tags/${TARGET_TAG}" \
+            --jq '.assets[] | select((.label // "") != "") | (.id | tostring)' \
+          | while read -r id; do
+              [ -n "$id" ] || continue
+              gh api -X PATCH -H "Accept: application/vnd.github+json" \
+                "repos/${REPO}/releases/assets/${id}" -f label="" >/dev/null 2>&1 || true
+            done
+
+      # ⚠️ artifact 名必须带 run_number：upload-artifact 拒绝同名 artifact（不是覆盖），而
+      #    「同一 commit、同一分钟内重复触发」会让 ts 与短号都相同 ⇒ 直接失败。
+      - name: Upload artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ env.FORK_LABEL }}-${{ steps.target.outputs.variant_tag }}-${{ steps.info.outputs.ts }}-${{ steps.info.outputs.short }}-${{ github.run_number }}
+          path: dist/*.apk
+          if-no-files-found: error
+
+      # 正文重建 + 清理，**共用同一份 API 快照** ⇒「表格里列出的组」与「实际保留的组」必然一致。
+      # 正文为什么**全量重建**而不是在旧正文上追加：重建的输入是页面上真实存在的 asset 列表
+      #   （权威、各 run 共享），并发交错下任何一次运行的产出都是「当时可见的完整状态」，最终
+      #   收敛；追加式则会在「两个 run 同时读到同一份旧正文」时各写各的、丢掉对方那一行。
+      - name: Refresh ci page body + cleanup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          chmod +x "$REFRESH_SCRIPT"
+          # 富脚注由 workflow 拼（页面语义因项目而异）；脚本自带的部分见其 FOOTER_EXTRA 说明。
+          FOOTER_EXTRA="$(
+            echo "- 各包共用同一把固定钥（${SIGN_SCHEMES:-未读取到}），可互相覆盖安装。"
+            echo "- 本渠道只出 CI flavor（release 构建类型、R8 已裁剪），包内版本名带 \`-CI.<短号>\` 后缀，与正式版 App flavor 的包可区分。"
+            echo "- 作用域 \`${SCOPE:-未读取到}\` 已在 \`META-INF/xposed/scope.list\` 静态声明，LSPosed 里无需手动勾选。"
+          )" \
+          "$REFRESH_SCRIPT"
+# 收尾提示（不上传到页面，只写在这里供新项目参考）：
+#   · 首次接入后手动 dispatch 一次（variant=both），确认页面出两行、资产各一份。
+#   · 页面列集与列序改 COLUMNS（默认 time,version,commit,variant,size,download）。
+#   · 保留组数改 KEEP_GROUPS；改小会让旧包在下次运行时被清理。
