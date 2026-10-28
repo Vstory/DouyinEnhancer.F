@@ -358,10 +358,13 @@ jobs:
             [ -n "$PKG_LINE" ] || { echo "::error::$NAME 读不到 badging 的 package 行"; exit 1; }
             printf '%s' "$PKG_LINE" | grep -Fq "name='${EXPECT_PACKAGE}'" \
               || { echo "::error::$NAME 包名不是 ${EXPECT_PACKAGE}：$PKG_LINE"; exit 1; }
-            LABEL_LINE="$(printf '%s' "$BADGING" | grep -m1 "^application-label:" || true)"
-            printf '%s' "$LABEL_LINE" | grep -Fq "'${FORK_LABEL}'" \
-              || { echo "::error::$NAME 显示名不是 ${FORK_LABEL}：${LABEL_LINE:-未读到}"; exit 1; }
-            echo "  ✅ 包名 ${EXPECT_PACKAGE} / 显示名 ${FORK_LABEL}"
+            # 显示名必须**每个 locale** 都是 fork 名：只改 values/strings.xml 时，中文设备仍显示
+            #   上游中文名（values-zh-rCN 里另有一份 app_name），安装器界面就像装错了包。
+            LABEL_LINES="$(printf '%s' "$BADGING" | grep '^application-label' || true)"
+            [ -n "$LABEL_LINES" ] || { echo "::error::$NAME 读不到 badging 的 application-label 行"; exit 1; }
+            BAD_LABEL="$(printf '%s\n' "$LABEL_LINES" | grep -vF "'${FORK_LABEL}'" | head -1 || true)"
+            [ -z "$BAD_LABEL" ] || { echo "::error::$NAME 有 locale 的显示名不是 ${FORK_LABEL}：$BAD_LABEL"; exit 1; }
+            echo "  ✅ 包名 ${EXPECT_PACKAGE} / 显示名 ${FORK_LABEL}（$(printf '%s\n' "$LABEL_LINES" | wc -l) 个 locale）"
 
             # ① libxposed 三件套 —— 缺任何一个，LSPosed 都不会把 APK 认成模块
             MISSING=""

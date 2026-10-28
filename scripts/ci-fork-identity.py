@@ -2,7 +2,7 @@
 # SCRIPT_VERSION=1.0.0
 """CI 专用：把 runner 工作区的包名、显示名与启动验证闸门改写成 fork 形态，仓库源码一行都不落库。
 
-改四样东西：applicationId、显示名（含 Gradle 产物名前缀）、启动验证弹窗的闸门。
+改四样东西：applicationId、显示名（含各 locale 与 Gradle 产物名前缀）、启动验证弹窗的闸门。
 
 包名为什么落不进仓库：上游一旦改这些行，仓库里的 fork 值就是合并冲突；而 fork 身份只在出包
 时才需要，故一律在 CI 工作区改写。
@@ -39,6 +39,13 @@ def build_edits(app_id: str, label: str) -> list[tuple[str, str, str]]:
         (
             "app/src/main/res/values/strings.xml",
             '<string name="app_name">Douyin Enhancer</string>',
+            f'<string name="app_name">{label}</string>',
+        ),
+        # 中文资源里另有一份 app_name（上游的中文名）—— 只改默认值的话，中文设备（fork 的主要
+        #   使用场景）仍显示上游中文名，安装器界面看着就像装错了包
+        (
+            "app/src/main/res/values-zh-rCN/values-zh.xml",
+            '<string name="app_name">抖柚</string>',
             f'<string name="app_name">{label}</string>',
         ),
         # Gradle 侧原始产物名（app/build/outputs/apk/.../DouyinEnhancer_<版本>.apk）：CI 发布名由
