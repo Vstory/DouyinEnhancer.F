@@ -204,9 +204,10 @@ jobs:
             *) echo "::error::非法变体：${WANT}"; exit 1 ;;
           esac
 
-          # tag 带时间戳+短号 ⇒ 每次构建一个新 Release，构建之间互不覆盖；
-          #   同一 tag 只会出现在「重跑上一次运行」时，那时按覆盖处理即可。
-          RELEASE_TAG="ci-${TS}-${SHORT}"
+          # tag 带 时间戳+短号+运行号 ⇒ 每次构建一个新 Release，互不覆盖。
+          #   ⚠️ 光有时间戳+短号不够：「同一 commit、同一分钟内」重复触发（push 与 dispatch 撞车、
+          #      重跑）会算出同一个值 ⇒ 两个运行抢同一个页面。运行号是唯一且单调的。
+          RELEASE_TAG="ci-${TS}-${SHORT}-r${GITHUB_RUN_NUMBER}"
           {
             echo "tag=${RELEASE_TAG}"
             echo "variant_tag=$(printf '%s' "$VLIST" | tr ' ' '-')"
