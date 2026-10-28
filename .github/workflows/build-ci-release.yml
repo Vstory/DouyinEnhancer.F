@@ -69,10 +69,11 @@ env:
   #   名字进文件名与下载 URL ⇒ label 只允许 A-Za-z0-9._-（中文名与括号在此会变成 URL 不友好字符）。
   FORK_LABEL: DouyinEnhancer.F
   # fork 包名：与上游 io.github.twyora.douyinenhancer 并存安装、可对照跑同一版本。
-  #   EXPECT_ACTIVITY 钉的是 **namespace 没被动过**：类包一旦被改，manifest 里 `.ui.MainActivity`
-  #   这类相对名会解析到不存在的类，产物能装却一开就崩。
   EXPECT_PACKAGE: io.github.twyora.douyinenhancer.fork
-  EXPECT_ACTIVITY: io.github.twyora.douyinenhancer.ui.MainActivityAlias
+  # 启动类只钉 `<namespace>.` 前缀：本项目桌面入口在 activity-alias 上，而 aapt2 把 activity
+  #   还是 alias 报成 launchable-activity 不由我们决定 ⇒ 钉全名会在两种合法写法间误报。
+  #   要防的是 namespace 被改写（manifest 相对名解析到不存在的类，能装、一开就崩）。
+  EXPECT_NAMESPACE: io.github.twyora.douyinenhancer
   # 版本号来源文件：脚本用 sed 取**第一处** versionName / versionCode（本项目在 gradle.properties，
   #   键名带 project. 前缀，故 Resolve APK name 里的正则按此改写）
   VERSION_FILE: gradle.properties
@@ -399,9 +400,11 @@ jobs:
             LABEL_LINE="$(printf '%s' "$BADGING" | grep -m1 "^application-label:" || true)"
             printf '%s' "$LABEL_LINE" | grep -Fq "'${FORK_LABEL}'" \
               || { echo "::error::$NAME 显示名不是 ${FORK_LABEL}：${LABEL_LINE:-未读到}"; exit 1; }
-            printf '%s' "$BADGING" | grep -Fq "launchable-activity: name='${EXPECT_ACTIVITY}'" \
-              || { echo "::error::$NAME 启动类不是 ${EXPECT_ACTIVITY} —— namespace 是否被改过？"; exit 1; }
-            echo "  ✅ 包名 ${EXPECT_PACKAGE} / 显示名 ${FORK_LABEL} / 启动类 ${EXPECT_ACTIVITY}"
+            LAUNCH="$(printf '%s' "$BADGING" | grep -m1 "launchable-activity: name='" || true)"
+            [ -n "$LAUNCH" ] || { echo "::error::$NAME badging 里没有 launchable-activity（桌面入口缺失）"; exit 1; }
+            printf '%s' "$LAUNCH" | grep -Fq "name='${EXPECT_NAMESPACE}." \
+              || { echo "::error::$NAME 启动类不在 namespace ${EXPECT_NAMESPACE} 下 —— namespace 是否被改过？实际: $LAUNCH"; exit 1; }
+            echo "  ✅ 包名 ${EXPECT_PACKAGE} / 显示名 ${FORK_LABEL} / 启动类 $LAUNCH"
 
             # ① libxposed 三件套 —— 缺任何一个，LSPosed 都不会把 APK 认成模块
             MISSING=""
