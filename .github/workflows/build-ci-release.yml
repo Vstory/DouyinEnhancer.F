@@ -16,7 +16,8 @@
 #   · 产物路径由 flavor 决定（app/build/outputs/apk/CI/release/），名字由 androidComponents 定制
 #   · 签名经 gropify 从**环境变量** KEYSTORE_PATH / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD 读取，
 #     模板默认写的 local.properties `storeFile=` 等键名它不认
-#   · CI flavor 自带版本后缀 `<versionName>-CI.<短号7位>`、versionCode+1 ⇒ 门禁按此断言
+#   · CI flavor 的版本号由 CI 传入：versionCode = 构建分钟时间戳（单调，见 Resolve 段），
+#     versionName = `<versionName>+ci.<短号>`（semver 构建元数据段）⇒ 门禁按此断言
 # ══════════════════════════════════════════════════════════════════════════════
 name: Build · CI · Release
 
@@ -51,6 +52,14 @@ on:
 #   「推了就有包」；排队等前一次跑完、或同分支新推取消旧跑，都会让人拿不到自己那次的产物）。
 # 页面写入的并发安全因此不靠串行，改由三件事共同保证（见 Publish / Refresh 两步）：
 #   幂等创建 + 资产名天然唯一 + 正文全量重建。任何交错都收敛到同一稳态（页面 = 最新 N 组）。
+
+# 同一分支的构建**串行**：新提交一进来就取消还在跑的旧构建（同一 ref 只需最新产物）。
+#   跨分支仍然并行 —— group 含 `github.ref`，别的分支推了不会误杀自己这条。
+#   2026-10 实测：同分支并发时两个 run 会算出同一个 release tag（时间戳精度到分钟）而互相踩，
+#   取消旧跑比给 tag 加随机后缀更符合「只要最新」的意图。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write   # 发布 Release 需要写权限
@@ -180,17 +189,16 @@ jobs:
         run: |
           set -euo pipefail
           VER="$(sed -nE 's/^[[:space:]]*project\.versionName=(.*)$/\1/p' "$VERSION_FILE" | head -1)"
-          CODE="$(sed -nE 's/^[[:space:]]*project\.versionCode=([0-9]+).*$/\1/p' "$VERSION_FILE" | head -1)"
-          if [ -z "$VER" ] || [ -z "$CODE" ]; then
-            echo "::error::读不到 versionName/versionCode（$VERSION_FILE 的 project.versionName / project.versionCode）"
-            exit 1
-          fi
-          # 以下两条复刻 app/build.gradle.kts 的 CI flavor 规则（本渠道出的就是这个 flavor）：
-          #   versionName 取 defaultConfig 里 " - "（空格-连字符-空格）之前那段再拼 "-CI.<短号7位>"；
-          #   versionCode 为 +1。上游改了 flavor 规则时这两个断言会红 —— 那是提醒，不是误报。
+          [ -n "$VER" ] || { echo "::error::读不到 versionName（$VERSION_FILE 的 project.versionName）"; exit 1; }
+          # versionCode = 分钟时间戳 ⇒ 每次构建自增且单调。不用 gradle.properties 里的静态值：
+          #   同一版本连构多次时 code 不变，装机分不出先后、覆盖升级判不出新。
+          #   也不用提交数 / RUN_NUMBER：squash、切分支、工作流改名都会让它倒退，装机被判降级。
+          CODE=$(( $(date +%s) / 60 ))
+          [ "$CODE" -le 2100000000 ] || { echo "::error::versionCode=$CODE 超过 2100000000（Play 硬上限）"; exit 1; }
+          # CI flavor 的 versionName 取 defaultConfig 里 " - "（空格-连字符-空格）之前那段，再拼
+          #   `+ci.<短号>`（规则由 scripts/ci-fork-identity.py 在构建前改写进 build.gradle.kts）。
           # ⚠️ split 必须先于去空格：去掉空白后 " - " 分隔符就没了，规则会静默失效。
           VER="$(printf '%s' "$VER" | sed -E 's/[[:space:]]+-[[:space:]].*$//')"
-          CODE=$((CODE + 1))
           # 版本名可能带空格（如 "2.2.0 Dev 9"），而文件名不允许空格 —— 去掉全部空白
           VER="$(printf '%s' "$VER" | tr -d '[:space:]')"
           case "$VER" in
@@ -266,8 +274,8 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "已按固定密钥配置签名（环境变量注入，gropify 读取）"
 
-      # 本项目不用 -PciVersionSuffix：CI flavor 已把 versionName 拼成 `<版本>-CI.<短号7位>`
-      #   （app/build.gradle.kts 的 CI flavor），同一 versionCode 的多次构建天然可区分。
+      # 版本号经 -P 传给 Gradle（flavor 规则由 ci-fork-identity.py 改写）：versionCode 用本次
+      #   构建的时间戳、versionName 拼 `+ci.<短号>`。
       #   变体口径由所选模板固定（只出 release），要换口径换模板文件。
       - name: Gradle build
         run: |
@@ -275,8 +283,8 @@ jobs:
           chmod +x gradlew
           for v in $VARIANT_LIST; do
             case "$v" in
-              debug)   ./gradlew --no-daemon :app:assembleCIDebug ;;
-              release) ./gradlew --no-daemon :app:assembleCIRelease ;;
+              debug)   ./gradlew --no-daemon :app:assembleCIDebug   -PciVersionCode="$CODE" -PciVersionSuffix="$SHORT" ;;
+              release) ./gradlew --no-daemon :app:assembleCIRelease -PciVersionCode="$CODE" -PciVersionSuffix="$SHORT" ;;
             esac
           done
           ls -la app/build/outputs/apk/CI/*/ || true
@@ -409,11 +417,10 @@ jobs:
             # ⚠️ 本步骤每个 `VAR="$(... | grep ...)"` 都带 `|| true`：grep 无匹配时返回 1，在
             #    `bash -e` 下会让赋值语句整体失败 ⇒ 脚本**静默**退出（日志里只剩 "Process
             #    completed with exit code 1."，看不出是哪条断言挂了）。故一律「先抓、再显式判空报错」。
-            # ④ 版本号必须与源码一致：CI flavor 拼的后缀是 `-CI.<短号7位>`（见 app/build.gradle.kts），
-            #    与产物名里的 8 位短号不同源，别把两者对齐。
-            EXPECT_VN="${VER}-CI.${SHORT:0:7}"
+            # ④ 版本号必须与本次构建算的值一致：`<版本>+ci.<短号>` / 分钟时间戳
+            EXPECT_VN="${VER}+ci.${SHORT}"
             printf '%s' "$PKG_LINE" | grep -q "versionCode='${CODE}'" \
-              || { echo "::error::$NAME 的 versionCode 与源码不符（期望 ${CODE}）：$PKG_LINE"; exit 1; }
+              || { echo "::error::$NAME 的 versionCode 不是本次构建的时间戳（期望 ${CODE}）：$PKG_LINE"; exit 1; }
             # 用 -F：期望串含 `+` 与 `.`，走正则会被当元字符
             printf '%s' "$PKG_LINE" | grep -Fq "versionName='${EXPECT_VN}'" \
               || { echo "::error::$NAME 的 versionName 与源码不符（期望 ${EXPECT_VN}）：$PKG_LINE"; exit 1; }
@@ -466,6 +473,33 @@ jobs:
 
           done
 
+      # ⚠️ artifact 名必须带 run_number：upload-artifact 拒绝同名 artifact（不是覆盖），而
+      #    「同一 commit、同一分钟内重复触发」会让 ts 与短号都相同 ⇒ 直接失败。
+      - name: Upload artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ env.FORK_LABEL }}-${{ steps.target.outputs.variant_tag }}-${{ steps.info.outputs.ts }}-${{ steps.info.outputs.short }}-${{ github.run_number }}
+          path: dist/*.apk
+          if-no-files-found: error
+
+      # 兜底清残渣：上一轮被 concurrency 取消的 run 可能已建出 Release 却没传资产，留下空页面。
+      #   只删「零资产 且 建了 15 分钟以上」的 ci-* —— 跨分支是并行的，太新的可能是别人正在传的。
+      - name: Sweep empty ci releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/${REPO}/releases?per_page=100" \
+            --jq '.[] | select(.tag_name|startswith("ci-")) | select((.assets|length)==0)
+                  | select((.created_at|fromdate) < (now-900)) | .tag_name' \
+          | while read -r tag; do
+              [ -n "$tag" ] || continue
+              echo "删除空页面：$tag"
+              gh release delete "$tag" --yes >/dev/null
+            done
+          echo "空页面清理完成"
+
       # 发布：**每次构建发一个独立 Release**（tag = ci-<时间戳>-<短号>，与产物名同源）。
       #   同一 tag 只会出现在重跑时 ⇒ 走 edit 覆盖；prerelease 且 latest=false：CI 包不抢「最新」。
       # ⚠️ **不要给 asset 写 label**：GitHub 在 Release 页面用 label **顶替文件名显示**，打了
@@ -494,13 +528,4 @@ jobs:
           gh release upload "$TARGET_TAG" dist/*.apk --clobber >/dev/null
           echo "已发布：https://github.com/${REPO}/releases/tag/${TARGET_TAG}"
           echo "资产：$(ls dist/*.apk | tr '\n' ' ')"
-
-      # ⚠️ artifact 名必须带 run_number：upload-artifact 拒绝同名 artifact（不是覆盖），而
-      #    「同一 commit、同一分钟内重复触发」会让 ts 与短号都相同 ⇒ 直接失败。
-      - name: Upload artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ${{ env.FORK_LABEL }}-${{ steps.target.outputs.variant_tag }}-${{ steps.info.outputs.ts }}-${{ steps.info.outputs.short }}-${{ github.run_number }}
-          path: dist/*.apk
-          if-no-files-found: error
 

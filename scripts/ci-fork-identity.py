@@ -55,6 +55,27 @@ def build_edits(app_id: str, label: str) -> list[tuple[str, str, str]]:
             'output.outputFileName.set("DouyinEnhancer_${vn}$buildTypeSuffix.apk")',
             f'output.outputFileName.set("{label}_${{vn}}$buildTypeSuffix.apk")',
         ),
+        # 版本号：上游把 CI flavor 写死成 `<版本>-CI.<短号>` + versionCode+1 ⇒ 同一 versionCode
+        #   连续构建多次时，应用信息页完全同形，认不出是哪一次提交。改成 CI 传入的
+        #   versionCode（分钟时间戳，单调）与 `+ci.<短号>`（semver 构建元数据段，不参与版本比较）。
+        (
+            "app/build.gradle.kts",
+            """        create("CI") {
+            dimension = "tier"
+            versionCode = defaultConfig.versionCode?.plus(1)
+            versionName = "${defaultConfig.versionName?.split(Regex("\\\\s+-\\\\s+"))?.get(0)}-CI.${
+                resolveGitCommitSuffix(rootProject)
+            }"
+        }""",
+            """        create("CI") {
+            dimension = "tier"
+            versionCode = providers.gradleProperty("ciVersionCode").orNull?.toIntOrNull()
+                ?: defaultConfig.versionCode?.plus(1)
+            versionName = "${defaultConfig.versionName?.split(Regex("\\\\s+-\\\\s+"))?.get(0)}+ci.${
+                providers.gradleProperty("ciVersionSuffix").orNull ?: resolveGitCommitSuffix(rootProject)
+            }"
+        }""",
+        ),
         # 启动验证弹窗停用：shouldVerify 是唯一闸门（VerifyDialogHooker 的 onResume、SettingsDialog
         #   的入口都问它）⇒ 恒 false 即两个入口一起失效，不必删调用点（删了反而让上游合并更容易冲突）。
         (
