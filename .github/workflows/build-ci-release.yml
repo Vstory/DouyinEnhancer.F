@@ -70,9 +70,8 @@ env:
   FORK_LABEL: DouyinEnhancer.F
   # fork 包名：与上游 io.github.twyora.douyinenhancer 并存安装、可对照跑同一版本。
   EXPECT_PACKAGE: io.github.twyora.douyinenhancer.fork
-  # 启动类只钉 `<namespace>.` 前缀：本项目桌面入口在 activity-alias 上，而 aapt2 把 activity
-  #   还是 alias 报成 launchable-activity 不由我们决定 ⇒ 钉全名会在两种合法写法间误报。
-  #   要防的是 namespace 被改写（manifest 相对名解析到不存在的类，能装、一开就崩）。
+  # namespace（= 源码类包）：门禁用 dex 里的 `…/ui/MainActivity;` 钉住它没被改写
+  #   —— 改写 namespace 会让 manifest 的相对名解析到不存在的类（能装、一开就崩）。
   EXPECT_NAMESPACE: io.github.twyora.douyinenhancer
   # 版本号来源文件：脚本用 sed 取**第一处** versionName / versionCode（本项目在 gradle.properties，
   #   键名带 project. 前缀，故 Resolve APK name 里的正则按此改写）
@@ -390,8 +389,8 @@ jobs:
             esac
             echo "════ 校验 $NAME（$VAR）"
 
-            # fork 身份三项：包名 / 显示名 / 启动类所在的类包。三者都是「能装、能跑，但装的是
-            #   另一个应用」这类静默失败 —— 放最前面查，错了不必等构建几分钟后的门禁。
+            # fork 身份：包名 / 显示名。两者都是「能装、能跑，但装的是另一个应用」这类静默失败
+            #   —— 放最前面查，错了不必等构建几分钟后的门禁。
             BADGING="$("$AAPT2" dump badging "$APK" 2>/dev/null || true)"
             PKG_LINE="$(printf '%s' "$BADGING" | grep -m1 "^package:" || true)"
             [ -n "$PKG_LINE" ] || { echo "::error::$NAME 读不到 badging 的 package 行"; exit 1; }
@@ -400,11 +399,7 @@ jobs:
             LABEL_LINE="$(printf '%s' "$BADGING" | grep -m1 "^application-label:" || true)"
             printf '%s' "$LABEL_LINE" | grep -Fq "'${FORK_LABEL}'" \
               || { echo "::error::$NAME 显示名不是 ${FORK_LABEL}：${LABEL_LINE:-未读到}"; exit 1; }
-            LAUNCH="$(printf '%s' "$BADGING" | grep -m1 "launchable-activity: name='" || true)"
-            [ -n "$LAUNCH" ] || { echo "::error::$NAME badging 里没有 launchable-activity（桌面入口缺失）"; exit 1; }
-            printf '%s' "$LAUNCH" | grep -Fq "name='${EXPECT_NAMESPACE}." \
-              || { echo "::error::$NAME 启动类不在 namespace ${EXPECT_NAMESPACE} 下 —— namespace 是否被改过？实际: $LAUNCH"; exit 1; }
-            echo "  ✅ 包名 ${EXPECT_PACKAGE} / 显示名 ${FORK_LABEL} / 启动类 $LAUNCH"
+            echo "  ✅ 包名 ${EXPECT_PACKAGE} / 显示名 ${FORK_LABEL}"
 
             # ① libxposed 三件套 —— 缺任何一个，LSPosed 都不会把 APK 认成模块
             MISSING=""
@@ -435,6 +430,17 @@ jobs:
             done
             [ "$FOUND" -eq 1 ] || { echo "::error::$NAME 的入口类 $ENTRY（$ENTRY_DESC）不在任何 dex 里 —— 被裁剪或改名，模块不会加载"; exit 1; }
             echo "  ✅ 入口类在 dex 中：$ENTRY"
+
+            # namespace 未被改写：manifest 的 `.ui.MainActivity` 这类相对名按 namespace 解析，改了
+            #   namespace 产物照样能装、一开桌面入口就崩。不用 badging 的 launchable-activity 钉
+            #   —— 本项目桌面入口挂在 activity-alias 上，aapt2 不把它报成 launchable，那条必然空。
+            NS_DESC="L$(printf '%s' "$EXPECT_NAMESPACE" | tr '.' '/')/ui/MainActivity;"
+            NS_FOUND=0
+            for d in $(unzip -l "$APK" | awk '$4 ~ /^classes[0-9]*\.dex$/ {print $4}'); do
+              if unzip -p "$APK" "$d" | grep -qaF "$NS_DESC"; then NS_FOUND=1; break; fi
+            done
+            [ "$NS_FOUND" -eq 1 ] || { echo "::error::$NAME 找不到 $NS_DESC —— 源码类包与 namespace 不一致（能装，一开就崩）"; exit 1; }
+            echo "  ✅ namespace 与源码类包一致：$NS_DESC"
 
             # ⚠️ 本步骤每个 `VAR="$(... | grep ...)"` 都带 `|| true`：grep 无匹配时返回 1，在
             #    `bash -e` 下会让赋值语句整体失败 ⇒ 脚本**静默**退出（日志里只剩 "Process
