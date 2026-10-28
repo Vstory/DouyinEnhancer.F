@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SCRIPT_VERSION=1.0.0
+# SCRIPT_VERSION=1.1.0
 """CI 专用：把 runner 工作区的包名、显示名与启动验证闸门改写成 fork 形态，仓库源码一行都不落库。
 
 改四样东西：applicationId、显示名（各 locale 末尾追加 `-suffix`）、Gradle 产物名前缀、启动验证弹窗的闸门。
@@ -122,26 +122,17 @@ def verify_edits(edits: list[tuple[str, str, str]]) -> list[str]:
     return hits
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--app-id", default=DEFAULT_APP_ID)
-    parser.add_argument("--label", default=DEFAULT_LABEL)
-    parser.add_argument("--label-suffix", default=DEFAULT_LABEL_SUFFIX)
-    parser.add_argument("--dry-run", action="store_true")
-    args = parser.parse_args()
+def validate(app_id: str, label: str, suffix: str) -> list[str]:
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", label):
+        return [f"--label 只允许 A-Za-z0-9._-（它进 APK 文件名与下载 URL）：{label!r}"]
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", suffix):
+        return [f"--label-suffix 只允许 A-Za-z0-9._-：{suffix!r}"]
+    if not re.fullmatch(r"[A-Za-z0-9._]+", app_id):
+        return [f"--app-id 不合法：{app_id!r}"]
+    return []
 
-    # label 不只进 app_name：它还当前缀进 APK 文件名与下载 URL ⇒ 非法字符在这里拦下
-    if not re.fullmatch(r"[A-Za-z0-9._-]+", args.label):
-        print(f"::error::--label 只允许 A-Za-z0-9._-（它进 APK 文件名与下载 URL）：{args.label!r}", file=sys.stderr)
-        return 1
-    if not re.fullmatch(r"[A-Za-z0-9._-]+", args.label_suffix):
-        print(f"::error::--label-suffix 不合法：{args.label_suffix!r}", file=sys.stderr)
-        return 1
-    if not re.fullmatch(r"[A-Za-z0-9._]+", args.app_id):
-        print(f"::error::--app-id 不合法：{args.app_id!r}", file=sys.stderr)
-        return 1
 
-    edits = build_edits(args.app_id, args.label, args.label_suffix)
+def apply(edits: list[tuple[str, str, str]]) -> list[str]:
     problems: list[str] = []
     for rel, old, _new in edits:
         path = REPO_ROOT / rel
@@ -151,26 +142,92 @@ def main() -> int:
         got = path.read_text(encoding="utf-8").count(old)
         if got != 1:
             problems.append(f"{rel}: 期望 1 处、实际 {got} 处: {old}")
-
     if problems:
-        print("::error::fork 身份改写的前置校验未通过：", file=sys.stderr)
-        for p in problems:
-            print(f"  - {p}", file=sys.stderr)
+        return problems
+    for rel, old, new in edits:
+        path = REPO_ROOT / rel
+        path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
+        print(f"  {rel}: {old} → {new}")
+    return verify_edits(edits)
+
+
+def selftest() -> int:
+    """不联网、不碰仓库：用临时目录造原文，验改写链路与参数闸门。"""
+    import tempfile
+
+    global REPO_ROOT
+    fails: list[str] = []
+
+    for args, want_ok in (
+        (("io.github.x.fork", "App.F", ".F"), True),
+        (("io.github.x", "抖柚.F", ".F"), False),
+        (("io.github.x", "App.F", "!F"), False),
+        (("bad-app-id", "App.F", ".F"), False),
+    ):
+        got_ok = not validate(*args)
+        if got_ok != want_ok:
+            fails.append(f"validate{args} 期望 {'通过' if want_ok else '拒绝'}，实际相反")
+
+    orig_root = REPO_ROOT
+    with tempfile.TemporaryDirectory() as tmp:
+        REPO_ROOT = Path(tmp)
+        try:
+            edits = build_edits("io.github.x.fork", "App.F", ".F")
+            by_file: dict[str, list[str]] = {}
+            for rel, old, _new in edits:
+                by_file.setdefault(rel, []).append(old)
+            for rel, olds in by_file.items():
+                path = REPO_ROOT / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("\n".join(olds), encoding="utf-8")
+            problems = apply(edits)
+            if problems:
+                fails.append(f"改写链路报错：{problems[:2]}")
+            # 显示名必须是「原名 + 后缀」，不是被替换成产物名前缀
+            xml = (REPO_ROOT / "app/src/main/res/values-zh-rCN/values-zh.xml").read_text(encoding="utf-8")
+            if "抖柚.F" not in xml:
+                fails.append("中文显示名没有按「原名 + 后缀」改写")
+            # 原文缺失必须整体失败（上游改了写法时的行为）
+            (REPO_ROOT / "gradle.properties").write_text("something else\n", encoding="utf-8")
+            if not apply(edits):
+                fails.append("原文缺失时没有失败")
+        finally:
+            REPO_ROOT = orig_root
+
+    for f in fails:
+        print(f"::error::selftest 失败：{f}", file=sys.stderr)
+    print(f"selftest {'通过' if not fails else '失败'}（{len(fails)} 项）")
+    return 0 if not fails else 1
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--app-id", default=DEFAULT_APP_ID)
+    parser.add_argument("--label", default=DEFAULT_LABEL)
+    parser.add_argument("--label-suffix", default=DEFAULT_LABEL_SUFFIX)
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--selftest", action="store_true")
+    args = parser.parse_args()
+    if args.selftest:
+        return selftest()
+
+
+    invalid = validate(args.app_id, args.label, args.label_suffix)
+    if invalid:
+        for msg in invalid:
+            print(f"::error::{msg}", file=sys.stderr)
         return 1
+
+    edits = build_edits(args.app_id, args.label, args.label_suffix)
 
     if args.dry_run:
         for rel, old, new in edits:
             print(f"[dry-run] {rel}\n    - {old}\n    + {new}")
         return 0
 
-    for rel, old, new in edits:
-        path = REPO_ROOT / rel
-        path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
-        print(f"  {rel}: {old} → {new}")
-
-    hits = verify_edits(edits)
+    hits = apply(edits)
     if hits:
-        print("::error::改写后身份值不正确：", file=sys.stderr)
+        print("::error::fork 身份改写未通过：", file=sys.stderr)
         for h in hits:
             print(f"  - {h}", file=sys.stderr)
         return 1
