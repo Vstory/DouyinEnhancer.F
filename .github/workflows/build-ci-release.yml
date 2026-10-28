@@ -1,17 +1,9 @@
 # ══════════════════════════════════════════════════════════════════════════════
-# CI 滚动发布工作流模板（跨语言共享 · 填空即用）
-# TEMPLATE_VERSION=1.0.4    # 模板版本号（模板内容变更时 bump；勿删）
+# CI 发布工作流（本项目定制：**每次构建发一个独立 Release**，不用滚动页）
 # ── action 引用（规则：工程域/脚本编写规则流程.md §CI 工作流）──
 #   uses 一律钉完整 40 位 SHA，禁 @vN / @main；行尾留 `# vX.Y.Z`。
 #   升级前按规程核对「最新」与「安全」两件事 —— 构建绿不等于安全。
 #   当前定版：checkout v7.0.1 / setup-java v6.1.0 / cache v6.1.0 / upload-artifact v7.0.2
-#   （项目另加 setup-go 之类步骤时，一并在此行续记版本）
-#   配套：100_System/templates/refresh_ci_page.sh（页面刷新器）
-#   规程：100_System/workflows/子流程/通用规范流程/GitHub域/CI滚动发布页流程.md
-#
-# 用法：复制到项目 .github/workflows/ 下 → 只改「PROJECT-CUSTOM」块与 on: 的 paths-ignore
-#   → 把 refresh_ci_page.sh 复制到项目 scripts/ 并 chmod +x → 配 4 个签名 secret。
-#   前置条件见同目录 README.md「CI 滚动发布页」小节。
 #
 # ── 本项目（DouyinEnhancer.F）相对模板的差异，均因工程骨架不同，勿改回 ──
 #   · fork 身份（包名 / 显示名 / Gradle 产物名前缀）在 CI 工作区由 scripts/ci-fork-identity.py
@@ -20,7 +12,7 @@
 #     改成恒 false 而停用；不改源码里的调用点，上游合并时不会冲突
 #   · 版本号在 gradle.properties（`project.versionName=` / `project.versionCode=`），不是 build.gradle.kts
 #   · 无裸 release 变体：tier 维度下有 CI / App 两个 flavor ⇒ 构建 `:app:assembleCIRelease`
-#     （滚动页是测试渠道，只出 CI flavor；App flavor 是正式包）
+#     （CI 渠道是测试渠道，只出 CI flavor；App flavor 是正式包）
 #   · 产物路径由 flavor 决定（app/build/outputs/apk/CI/release/），名字由 androidComponents 定制
 #   · 签名经 gropify 从**环境变量** KEYSTORE_PATH / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD 读取，
 #     模板默认写的 local.properties `storeFile=` 等键名它不认
@@ -28,9 +20,9 @@
 # ══════════════════════════════════════════════════════════════════════════════
 name: Build · CI · Release
 
-# 任意分支 push 都出包（只出 release 变体），发进固定 tag 的**同一个滚动页**，
-# 产物按时间戳追加、页面永不新增。分支本来就是用来试的 ⇒ 每次提交都该能立刻拿到包。
-# 多分支并发共用这一页（不设并发锁）—— 页面只有一张表，每个包一行，不按分支分页。
+# 任意分支 push 都出包（只出 release 变体），**每次构建发一个独立 Release**
+#   （tag = ci-<时间戳>-<短号>，产物即该 Release 的唯一资产）。分支本来就是用来试的 ⇒
+#   每次提交都该能立刻拿到包、且能按 tag 回到那一次构建。不设并发锁：每次构建自带 tag。
 # 需要排查用的 debuggable 包时，改用 build-ci-debug 模板，或本文件临时 dispatch。
 run-name: "Build · CI · Release · ${{ github.ref_name }}"
 
@@ -76,12 +68,7 @@ env:
   # 版本号来源文件：脚本用 sed 取**第一处** versionName / versionCode（本项目在 gradle.properties，
   #   键名带 project. 前缀，故 Resolve APK name 里的正则按此改写）
   VERSION_FILE: gradle.properties
-  # 滚动页：固定 tag + 页面标题 + 保留组数
-  CI_TAG: ci
-  CI_TITLE: DouyinEnhancer CI Build
-  KEEP_GROUPS: '6'
-  # 页面刷新器（复制自 100_System/templates/refresh_ci_page.sh）
-  REFRESH_SCRIPT: scripts/ci-refresh-page.sh
+  # 发布：每次构建一个独立 Release，tag = ci-<时间戳>-<短号>（与产物名同源）
   # 构建环境
   JAVA_VERSION: '21'
   ANDROID_PLATFORM: android-37.0
@@ -95,12 +82,6 @@ env:
   APK_DIR_RELEASE: app/build/outputs/apk/CI/release
   # push 触发时构建哪些变体（本模板固定只出 release；两个都出用 build-ci-both）
   PUSH_VARIANT: release
-  # 源码层静态检查（scripts/check_string_format_args.py，脚手架已复制进项目）
-  #   项目自有「取资源」包装函数，空格分隔（例：UiText.Res）；没有包装就留空
-  STR_RES_CALLS: ''
-  # 项目已做字符串资源化（有 res/values/strings.xml）⇒ 置 1：此时「找不到资源表」从跳过翻成
-  #   失败，否则 res 被改名/移走只会打一行 notice 就放行（门禁看着绿、其实没查）
-  STR_STRICT: ''
   # ═════════════════════════ PROJECT-CUSTOM-END ═════════════════════════
 
 jobs:
@@ -132,25 +113,6 @@ jobs:
       #   `Any`，类型与个数都不查）、单测也看不见（无 Android 资源表），只在真机点进那一屏时
       #   抛 IllegalFormatConversionException。早失败能省下几分钟构建。
       #   脚本由脚手架复制进项目（母版：100_System/templates/check_string_format_args.py）。
-      - name: Static check (string format args)
-        run: |
-          set -euo pipefail
-          SCRIPT=scripts/check_string_format_args.py
-          if [ ! -f "$SCRIPT" ]; then
-            # 老项目可能还没接这道检查 ⇒ 跳过；但项目既然声明了 STR_STRICT（= 它确实在做
-            #   字符串资源化，这道检查本该常驻），脚本消失就只能是误删/改名 ⇒ 不许静默放行。
-            if [ -n "${STR_STRICT:-}" ]; then
-              echo "::error::未找到 $SCRIPT（项目已声明 STR_STRICT）—— 视为误删/改名，拒绝静默跳过"
-              exit 1
-            fi
-            echo "::notice::未找到 $SCRIPT（母版：100_System/templates/check_string_format_args.py）—— 跳过"
-            exit 0
-          fi
-          # shellcheck disable=SC2086  # STR_RES_CALLS 故意不加引号：按空格拆成多个函数名
-          CALL_ARGS=()
-          for c in ${STR_RES_CALLS:-}; do CALL_ARGS+=(--call "$c"); done
-          python3 "$SCRIPT" ${STR_STRICT:+--strict} "${CALL_ARGS[@]}" .
-
       - name: Set up JDK
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
@@ -223,7 +185,7 @@ jobs:
             echo "::error::读不到 versionName/versionCode（$VERSION_FILE 的 project.versionName / project.versionCode）"
             exit 1
           fi
-          # 以下两条复刻 app/build.gradle.kts 的 CI flavor 规则（滚动页出的就是这个 flavor）：
+          # 以下两条复刻 app/build.gradle.kts 的 CI flavor 规则（本渠道出的就是这个 flavor）：
           #   versionName 取 defaultConfig 里 " - "（空格-连字符-空格）之前那段再拼 "-CI.<短号7位>"；
           #   versionCode 为 +1。上游改了 flavor 规则时这两个断言会红 —— 那是提醒，不是误报。
           # ⚠️ split 必须先于去空格：去掉空白后 " - " 分隔符就没了，规则会静默失效。
@@ -242,12 +204,11 @@ jobs:
             *) echo "::error::非法变体：${WANT}"; exit 1 ;;
           esac
 
+          # tag 带时间戳+短号 ⇒ 每次构建一个新 Release，构建之间互不覆盖；
+          #   同一 tag 只会出现在「重跑上一次运行」时，那时按覆盖处理即可。
+          RELEASE_TAG="ci-${TS}-${SHORT}"
           {
-            echo "tag=${CI_TAG}"
-            echo "name=${CI_TITLE}"
-            echo "prerelease=true"
-            echo "make_latest=false"
-            echo "variants=${VLIST}"
+            echo "tag=${RELEASE_TAG}"
             echo "variant_tag=$(printf '%s' "$VLIST" | tr ' ' '-')"
           } >> "$GITHUB_OUTPUT"
           for kv in "VER=$VER" "CODE=$CODE" "VARIANT_LIST=$VLIST" "SHORT=$SHORT"; do echo "${kv}" >> "$GITHUB_ENV"; done
@@ -416,7 +377,6 @@ jobs:
             unzip -p "$APK" META-INF/xposed/module.prop | grep -q "^targetApiVersion=${EXPECT_TARGET_API}$" \
               || { echo "::error::$NAME 的 module.prop 缺 targetApiVersion=${EXPECT_TARGET_API}"; exit 1; }
             echo "  ✅ 作用域静态声明有效（scope=$SCOPE）"
-            echo "SCOPE=$SCOPE" >> "$GITHUB_ENV"
 
             # ③ 入口类必须真在 dex 里，且与 java_init.list 写的名字一致。
             #    LSPosed 按 java_init.list 的名字反射加载 ⇒ 名字对不上（或裁剪/改名）时模块**静默
@@ -500,49 +460,36 @@ jobs:
             done
             echo "  ✅ 签名方案含 v2+v3"
 
-            echo "CERT_SHA256=$ACTUAL" >> "$GITHUB_ENV"
-            echo "SIGN_SCHEMES=${SCHEMES// /+}" >> "$GITHUB_ENV"
           done
 
-      # 发布到固定 tag 的**同一页**。无并发锁下的写入安全靠三点：
-      #   ① 幂等创建：先查后建，撞上 422（另一运行刚建好）就重查 —— 不再有「同时创建」的竞态；
-      #   ② 资产名含 时间戳 + 短 SHA ⇒ 天然唯一，并发上传互不覆盖；--clobber 让重跑覆盖自己；
-      #   ③ 正文**不由本步写**（见 Refresh），故不存在「正文互相覆盖」。
+      # 发布：**每次构建发一个独立 Release**（tag = ci-<时间戳>-<短号>，与产物名同源）。
+      #   同一 tag 只会出现在重跑时 ⇒ 走 edit 覆盖；prerelease 且 latest=false：CI 包不抢「最新」。
       # ⚠️ **不要给 asset 写 label**：GitHub 在 Release 页面用 label **顶替文件名显示**，打了
       #    label 的包会整行变成 label，看着就像「产物名不对」。
-      - name: Publish to ci release
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_TAG: ${{ steps.target.outputs.tag }}
-          REL_NAME: ${{ steps.target.outputs.name }}
           REPO: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
+          NOTES="**Commit** [\`${SHORT}\`](https://github.com/${REPO}/commit/${COMMIT})"
+          NOTES="$NOTES · **Branch** \`${GITHUB_REF_NAME}\` · **Version** ${VER} (versionCode ${CODE})"
+          NOTES="$NOTES · **Variants** ${VARIANT_LIST}"
 
-          # 页面不存在则建（正文是占位，真正的正文由 Refresh 重建）
-          : > /tmp/empty-notes.md
-          for i in 1 2 3 4 5; do
-            gh release view "$TARGET_TAG" >/dev/null 2>&1 && break
-            gh release create "$TARGET_TAG" \
-              --title "$REL_NAME" --prerelease --latest=false \
-              --notes-file /tmp/empty-notes.md >/dev/null 2>&1 || true
-          done
-          gh release view "$TARGET_TAG" >/dev/null 2>&1 \
-            || { echo "::error::$TARGET_TAG 页不存在且创建失败"; exit 1; }
+          if gh release view "$TARGET_TAG" >/dev/null 2>&1; then
+            echo "tag $TARGET_TAG 已存在 —— 按重跑处理"
+            gh release edit "$TARGET_TAG" --notes "$NOTES" --prerelease --latest=false
+          else
+            jq -n --arg t "$TARGET_TAG" --arg b "$NOTES" --arg c "$COMMIT" \
+              '{tag_name:$t, name:$t, target_commitish:$c, body:$b, prerelease:true}' \
+            | gh api -X POST "/repos/${REPO}/releases" --input -
+          fi
 
           gh release upload "$TARGET_TAG" dist/*.apk --clobber >/dev/null
-          echo "已上传：$(ls dist/*.apk | tr '\n' ' ')"
-
-          # 清历史遗留 label（曾一度打过，会把文件名顶掉）：只挑 label 非空的动手，
-          #   正常状态下零 PATCH。幂等，并发重复清同一份无害。
-          gh api --paginate -H "Accept: application/vnd.github+json" \
-            "repos/${REPO}/releases/tags/${TARGET_TAG}" \
-            --jq '.assets[] | select((.label // "") != "") | (.id | tostring)' \
-          | while read -r id; do
-              [ -n "$id" ] || continue
-              gh api -X PATCH -H "Accept: application/vnd.github+json" \
-                "repos/${REPO}/releases/assets/${id}" -f label="" >/dev/null 2>&1 || true
-            done
+          echo "已发布：https://github.com/${REPO}/releases/tag/${TARGET_TAG}"
+          echo "资产：$(ls dist/*.apk | tr '\n' ' ')"
 
       # ⚠️ artifact 名必须带 run_number：upload-artifact 拒绝同名 artifact（不是覆盖），而
       #    「同一 commit、同一分钟内重复触发」会让 ts 与短号都相同 ⇒ 直接失败。
@@ -553,27 +500,3 @@ jobs:
           path: dist/*.apk
           if-no-files-found: error
 
-      # 正文重建 + 清理，**共用同一份 API 快照** ⇒「表格里列出的组」与「实际保留的组」必然一致。
-      # 正文为什么**全量重建**而不是在旧正文上追加：重建的输入是页面上真实存在的 asset 列表
-      #   （权威、各 run 共享），并发交错下任何一次运行的产出都是「当时可见的完整状态」，最终
-      #   收敛；追加式则会在「两个 run 同时读到同一份旧正文」时各写各的、丢掉对方那一行。
-      - name: Refresh ci page body + cleanup
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-          SERVER: ${{ github.server_url }}
-        run: |
-          set -euo pipefail
-          chmod +x "$REFRESH_SCRIPT"
-          # 富脚注由 workflow 拼（页面语义因项目而异）；脚本自带的部分见其 FOOTER_EXTRA 说明。
-          FOOTER_EXTRA="$(
-            echo "- 各包共用同一把固定钥（${SIGN_SCHEMES:-未读取到}），可互相覆盖安装。"
-            echo "- 本渠道只出 CI flavor（release 构建类型、R8 已裁剪），包内版本名带 \`-CI.<短号>\` 后缀，与正式版 App flavor 的包可区分。"
-            echo "- 作用域 \`${SCOPE:-未读取到}\` 已在 \`META-INF/xposed/scope.list\` 静态声明，LSPosed 里无需手动勾选。"
-          )" \
-          "$REFRESH_SCRIPT"
-# 收尾提示（不上传到页面，只写在这里供新项目参考）：
-#   · 首次接入后手动 dispatch 一次（variant=both），确认页面出两行、资产各一份。
-#   · 页面列集与列序改 COLUMNS（默认 time,version,commit,variant,size,download）。
-#   · 保留组数改 KEEP_GROUPS；改小会让旧包在下次运行时被清理。
