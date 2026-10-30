@@ -1,12 +1,13 @@
 package io.github.twyora.douyinenhancer.config.kvstorage
 
+import android.content.Context
 import android.content.SharedPreferences
 import io.fastkv.FastKV
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
-class FastKVStorage(val fastKV: FastKV) : IKVStorage {
+class FastKVStorage(override val name: String, val fastKV: FastKV) : IKVStorage {
     override fun <T : Any> get(key: String, defValue: T): T {
         @Suppress("UNCHECKED_CAST")
         return when (defValue) {
@@ -67,7 +68,13 @@ class FastKVStorage(val fastKV: FastKV) : IKVStorage {
     }
 
     companion object : IKVStorage.IKVFactory {
+        override fun open(context: Context, name: String) = FastKVStorage(
+            name,
+            FastKV.Builder(context, name).build()
+        )
+
         override fun open(path: String, name: String) = FastKVStorage(
+            name,
             FastKV.Builder(path, name).build()
         )
     }

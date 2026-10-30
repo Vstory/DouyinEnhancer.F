@@ -1,9 +1,12 @@
 package io.github.twyora.douyinenhancer.config.kvstorage
 
+import android.content.Context
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 
 interface IKVStorage {
+    val name: String
+
     fun <T : Any> get(key: String, defValue: T): T
 
     fun getAll(): Map<String, Any>
@@ -19,6 +22,8 @@ interface IKVStorage {
     fun close()
 
     interface IKVFactory {
+        fun open(context: Context, name: String): IKVStorage
+
         fun open(path: String, name: String): IKVStorage
 
         fun open(path: String): IKVStorage {
