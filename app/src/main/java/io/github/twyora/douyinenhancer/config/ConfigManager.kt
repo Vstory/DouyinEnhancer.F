@@ -70,11 +70,11 @@ object ConfigManager {
 
     fun init(context: Context) {
         settingsStorage = FastKVStorage.open(
-            context.filesDir.absolutePath + "/fastkv/",
+            context,
             "douyinenhancer_prefs"
         )
         moduleStorage = FastKVStorage.open(
-            context.filesDir.absolutePath + "/fastkv/",
+            context,
             "douyinenhancer_module"
         )
     }

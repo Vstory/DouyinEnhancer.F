@@ -21,19 +21,20 @@ import io.github.twyora.douyinenhancer.R
 import io.github.twyora.douyinenhancer.bridge.ModuleApp
 import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.config.kvstorage.FastKVStorage
+import io.github.twyora.douyinenhancer.config.kvstorage.decodeAsKVMap
+import io.github.twyora.douyinenhancer.config.kvstorage.encodeToKVBytes
 import io.github.twyora.douyinenhancer.config.provider.ModuleConfigProvider
 import io.github.twyora.douyinenhancer.constant.HookInfoFiles
 import io.github.twyora.douyinenhancer.constant.SignatureKeys
 import io.github.twyora.douyinenhancer.utils.android.toast
+import io.github.twyora.douyinenhancer.utils.crypto.sha256Hex
 import io.github.twyora.douyinenhancer.utils.crypto.verifySha256RsaSignature
 import io.github.twyora.douyinenhancer.utils.reflect.Field
 import io.github.twyora.douyinenhancer.utils.reflect.setFieldOrNull
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.net.URL
-import java.security.DigestInputStream
-import java.security.DigestOutputStream
-import java.security.MessageDigest
+import java.nio.file.Files
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -49,6 +50,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
 import org.erdtman.jcs.JsonCanonicalizer
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -198,10 +200,6 @@ class SettingsDialog(context: Context) :
         override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
             when (requestCode) {
                 EXPORT_CONFIG, IMPORT_CONFIG -> {
-                    val settingsKva = File(context.filesDir, "./fastkv/douyinenhancer_prefs.kva")
-                    val settingsKvb = File(context.filesDir, "./fastkv/douyinenhancer_prefs.kvb")
-                    val digest = MessageDigest.getInstance("SHA-256")
-
                     val uri = data?.data
                     if (resultCode == RESULT_CANCELED || uri == null) {
                         return
@@ -210,31 +208,54 @@ class SettingsDialog(context: Context) :
                     when (requestCode) {
                         EXPORT_CONFIG -> {
                             runCatching {
-                                activity.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                                    ZipOutputStream(outputStream).use { zipOut ->
-                                        listOf(
-                                            settingsKva,
-                                            settingsKvb
-                                        ).filter {
-                                            it.exists()
-                                        }.forEach { file ->
-                                            zipOut.putNextEntry(ZipEntry(file.name))
-                                            DigestInputStream(
-                                                file.inputStream(),
-                                                digest
-                                            ).use { input ->
-                                                input.copyTo(zipOut)
-                                            }
+                                val storages = listOf(
+                                    ConfigManager.settingsStorage,
+                                    ConfigManager.moduleStorage
+                                )
+
+                                val tempZip = File.createTempFile(
+                                    "douyinenhancer_kv_export_",
+                                    "",
+                                    context.cacheDir
+                                )
+                                try {
+                                    ZipOutputStream(tempZip.outputStream()).use { zipOut ->
+                                        val manifestFiles = JSONArray()
+
+                                        storages.forEach { storage ->
+                                            val bytes = storage.encodeToKVBytes()
+
+                                            zipOut.putNextEntry(ZipEntry(storage.name))
+                                            zipOut.write(bytes)
                                             zipOut.closeEntry()
+
+                                            manifestFiles.put(
+                                                JSONObject().apply {
+                                                    put("name", storage.name)
+                                                    put("hash", bytes.inputStream().sha256Hex())
+                                                }
+                                            )
                                         }
-                                        zipOut.putNextEntry(ZipEntry("checksum"))
-                                        zipOut.write(
-                                            digest.digest().joinToString("") {
-                                                "%02x".format(it)
-                                            }.toByteArray()
-                                        )
+
+                                        val manifest = JSONObject().apply {
+                                            put("schemaVersion", 2)
+                                            put("algorithm", "SHA-256")
+                                            put("exportVersionCode", BuildConfig.VERSION_CODE)
+                                            put("files", manifestFiles)
+                                        }
+
+                                        zipOut.putNextEntry(ZipEntry("manifest.json"))
+                                        zipOut.write(manifest.toString().toByteArray())
                                         zipOut.closeEntry()
                                     }
+
+                                    activity.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                                        tempZip.inputStream().use {
+                                            it.copyTo(outputStream)
+                                        }
+                                    } ?: throw IOException("cannot open output uri")
+                                } finally {
+                                    tempZip.delete()
                                 }
                             }.onFailure {
                                 context.toast(
@@ -250,71 +271,86 @@ class SettingsDialog(context: Context) :
                         }
 
                         IMPORT_CONFIG -> {
-                            val tempBaseName = "douyinenhancer_prefs_temp"
-                            val settingsKvaTemp = File(context.cacheDir, "$tempBaseName.kva")
-                            val settingsKvbTemp = File(context.cacheDir, "$tempBaseName.kvb")
-                            runCatching {
-                                var checksum: String? = null
-
-                                activity.contentResolver.openInputStream(uri)?.use { inputStream ->
-                                    ZipInputStream(inputStream).use { zipIn ->
-                                        generateSequence {
-                                            zipIn.nextEntry
-                                        }.forEach { zipEntry ->
-                                            when (val fileName = zipEntry.name) {
-                                                "checksum" -> {
-                                                    val checksumBytes = ByteArray(1024)
-                                                    val readCount = zipIn.read(checksumBytes)
-                                                    checksum = String(checksumBytes, 0, readCount)
-                                                }
-
-                                                else -> {
-                                                    val targetFile = when (fileName) {
-                                                        settingsKva.name -> settingsKvaTemp
-                                                        settingsKvb.name -> settingsKvbTemp
-                                                        else -> null
-                                                    }
-                                                    targetFile?.outputStream()?.let {
-                                                        DigestOutputStream(it, digest).use { out ->
-                                                            zipIn.copyTo(out)
-                                                        }
-                                                    }
-                                                }
+                            val tempDir = Files.createTempDirectory(
+                                context.cacheDir.toPath(),
+                                "douyinenhancer_kv_import_"
+                            ).toFile()
+                            try {
+                                runCatching {
+                                    activity.contentResolver.openInputStream(uri)?.use { inputStream ->
+                                        ZipInputStream(inputStream).use { zipIn ->
+                                            generateSequence {
+                                                zipIn.nextEntry
+                                            }.forEach { entry ->
+                                                val bytes = zipIn.readBytes()
+                                                File(tempDir, entry.name).writeBytes(bytes)
+                                                zipIn.closeEntry()
                                             }
-                                            zipIn.closeEntry()
+                                        }
+                                    } ?: throw IOException("empty import")
+
+                                    val manifestFile = File(tempDir, "manifest.json")
+                                    if (!manifestFile.exists()) {
+                                        throw IOException("manifest.json missing")
+                                    }
+
+                                    val manifestJSON = JSONObject(manifestFile.readBytes().toString(Charsets.UTF_8))
+
+                                    val algorithm = manifestJSON.getString("algorithm")
+                                    require(algorithm == "SHA-256") {
+                                        "unsupported algorithm: $algorithm"
+                                    }
+
+                                    val files = manifestJSON.getJSONArray("files")
+                                    val expected = (0 until files.length()).associate { index ->
+                                        val fileEntry = files.getJSONObject(index)
+                                        fileEntry.getString("name") to fileEntry.getString("hash")
+                                    }
+                                    val storagesByName = listOf(
+                                        ConfigManager.settingsStorage,
+                                        ConfigManager.moduleStorage
+                                    ).associateBy {
+                                        it.name
+                                    }
+
+                                    expected.forEach { (name, expHash) ->
+                                        val raw = File(tempDir, name)
+                                        if (!raw.exists()) {
+                                            throw IOException("missing imported file: $name")
+                                        }
+                                        val actualHash = raw.inputStream().sha256Hex()
+                                        if (actualHash != expHash) {
+                                            throw IOException("hash mismatch: $name")
                                         }
                                     }
-                                }
 
-                                val expectedChecksum = digest.digest().joinToString("") {
-                                    "%02x".format(it)
-                                }
-                                if (checksum != expectedChecksum) {
-                                    throw IOException(ModuleApp.instance.resources.getString(R.string.config_import_corrupted))
-                                }
+                                    val snapshotHiddenFeature = ConfigManager.misc.hiddenFeatureEnabled.value
+                                    expected.forEach { (name, _) ->
+                                        val live = storagesByName.getOrElse(name) {
+                                            return@forEach
+                                        }
 
-                                val settings = ConfigManager.settingsStorage
-                                val hiddenFeatureValue = ConfigManager.misc.hiddenFeatureEnabled.value
-                                val importedSettings = FastKVStorage.open(context.cacheDir.absolutePath, tempBaseName)
-                                try {
-                                    settings.putAll(importedSettings.getAll())
-                                    ConfigManager.misc.hiddenFeatureEnabled.value = hiddenFeatureValue
-                                } finally {
-                                    importedSettings.close()
-                                }
-                            }.onFailure {
-                                context.toast(
-                                    ModuleApp.instance.resources.getString(
-                                        R.string.config_import_failed,
-                                        it.message ?: it.toString()
+                                        val importedBytes = File(tempDir, name).readBytes()
+                                        val importedMap = importedBytes.decodeAsKVMap()
+
+                                        live.clear()
+                                        live.putAll(importedMap)
+                                    }
+                                    ConfigManager.misc.hiddenFeatureEnabled.value = snapshotHiddenFeature
+                                }.onFailure {
+                                    context.toast(
+                                        ModuleApp.instance.resources.getString(
+                                            R.string.config_import_failed,
+                                            it.message ?: it.toString()
+                                        )
                                     )
-                                )
-                                YLog.error("$TAG: import config failed", it)
-                            }.onSuccess {
-                                context.toast(ModuleApp.instance.resources.getString(R.string.config_import_success))
+                                    YLog.error("$TAG: import config failed", it)
+                                }.onSuccess {
+                                    context.toast(ModuleApp.instance.resources.getString(R.string.config_import_success))
+                                }
+                            } finally {
+                                tempDir.deleteRecursively()
                             }
-                            settingsKvaTemp.delete()
-                            settingsKvbTemp.delete()
                         }
                     }
                 }
