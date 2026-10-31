@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package io.github.twyora.douyinenhancer.config.kvstorage;
+
+option java_outer_classname = "KVStorageProto";
+option java_package = "io.github.twyora.douyinenhancer.config.kvstorage";
+
+message KvValue {
+  oneof kind {
+    bool bool_v = 1;
+    int32 int_v = 2;
+    int64 long_v = 3;
+    float float_v = 4;
+    string string_v = 5;
+    StringSet set_v = 6;
+    double double_v = 7;
+  }
+}
+
+message StringSet {
+  repeated string items = 1;
+}
+
+message KvMap {
+  map<string, KvValue> entries = 1;
+}
