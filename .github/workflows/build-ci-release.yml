@@ -8,8 +8,8 @@
 # ── 本项目（DouyinEnhancer.F）相对模板的差异，均因工程骨架不同，勿改回 ──
 #   · fork 身份（包名 / 显示名 / Gradle 产物名前缀）在 CI 工作区由 scripts/ci-fork-identity.py
 #     改写，仓库源码保持与上游一致 —— 身份值落库会让每次同步上游都撞冲突
-#   · 上游的「启动验证弹窗」（要求输入模块下载地址）由同一脚本把 VerifyDialog.shouldVerify
-#     改成恒 false 而停用；不改源码里的调用点，上游合并时不会冲突
+#   · 上游的「设置页验证」（要求输入模块下载地址才放行设置路由）由同一脚本把 MainActivity 里的
+#     shouldVerify 改成恒 false 而停用；不改源码里的调用点，上游合并时不会冲突
 #   · 显示名只**追加**后缀 `.F`（英文 `Douyin Enhancer.F` / 中文 `抖柚.F`），不换名字
 #   · 版本号在 gradle.properties（`project.versionName=` / `project.versionCode=`），不是 build.gradle.kts
 #   · 无裸 release 变体：tier 维度下有 CI / App 两个 flavor ⇒ 构建 `:app:assembleCIRelease`

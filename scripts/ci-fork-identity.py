@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# SCRIPT_VERSION=1.1.0
-"""CI 专用：把 runner 工作区的包名、显示名与启动验证闸门改写成 fork 形态，仓库源码一行都不落库。
+# SCRIPT_VERSION=1.1.1
+"""CI 专用：把 runner 工作区的包名、显示名与验证闸门改写成 fork 形态，仓库源码一行都不落库。
 
-改四样东西：applicationId、显示名（各 locale 末尾追加 `-suffix`）、Gradle 产物名前缀、启动验证弹窗的闸门。
+改四样东西：applicationId、显示名（各 locale 末尾追加 `-suffix`）、Gradle 产物名前缀、进设置页前的验证闸门。
 
 包名为什么落不进仓库：上游一旦改这些行，仓库里的 fork 值就是合并冲突；而 fork 身份只在出包
 时才需要，故一律在 CI 工作区改写。
@@ -51,7 +51,7 @@ def build_edits(app_id: str, label: str, suffix: str) -> list[tuple[str, str, st
         # 中文资源里另有一份 app_name（上游的中文名）—— 只改默认值的话，中文设备（fork 的主要
         #   使用场景）仍显示上游原名，安装器界面看着就像装错了包
         (
-            "app/src/main/res/values-zh-rCN/values-zh.xml",
+            "app/src/main/res/values-zh-rCN/strings.xml",
             '<string name="app_name">抖柚</string>',
             f'<string name="app_name">抖柚{suffix}</string>',
         ),
@@ -83,26 +83,20 @@ def build_edits(app_id: str, label: str, suffix: str) -> list[tuple[str, str, st
             }"
         }""",
         ),
-        # 启动验证弹窗停用：shouldVerify 是唯一闸门（VerifyDialogHooker 的 onResume、SettingsDialog
-        #   的入口都问它）⇒ 恒 false 即两个入口一起失效，不必删调用点（删了反而让上游合并更容易冲突）。
+        # 进设置页前的验证闸门停用：上游要求输入模块下载地址才放行设置路由，fork 版不需要这道坎。
+        #   锚点在上游迁移过一次（从 host 侧 VerifyDialogHooker/VerifyDialog 搬到模块自己的
+        #   MainActivity 导航回调），故这里跟的是 MainActivity 里的那段判断：只让 shouldVerify
+        #   恒 false，下游的 `if (... && shouldVerify)` 与 Verification 路由原样保留 —— 调用点不动，
+        #   上游再改下游写法也不会撞冲突。
         (
-            "app/src/main/java/io/github/twyora/douyinenhancer/ui/legacy/VerifyDialog.kt",
-            """        fun shouldVerify(context: Context): Boolean {
-            val isChineseLocale = runCatching {
-                context.resources.configuration.locales[0].language ==
-                    Locale.CHINESE.language
-            }.onFailure {
-                YLog.error("$TAG: failed to read device locale", it)
-            }.getOrDefault(false)
-            val lastVerifiedVersion = ConfigManager.module.lastVerifiedVersion.value
-
-            return !(
-                BuildConfig.DEBUG || !isChineseLocale ||
-                    BuildConfig.VERSION_CODE == lastVerifiedVersion
-                )
-        }""",
-            """        // fork：上游「输入模块下载地址」的启动验证弹窗在 fork 版停用
-        fun shouldVerify(context: Context): Boolean = false""",
+            "app/src/main/java/io/github/twyora/douyinenhancer/ui/MainActivity.kt",
+            """                        val shouldVerify = !(
+                            BuildConfig.DEBUG ||
+                                (langCode != Locale.CHINESE.language) ||
+                                ConfigManager.module.lastVerifiedVersion.value == BuildConfig.VERSION_CODE
+                            )""",
+            """                        // fork：上游要求输入模块下载地址的验证页在 fork 版停用
+                        val shouldVerify: Boolean = false""",
         ),
     ]
 
@@ -184,7 +178,7 @@ def selftest() -> int:
             if problems:
                 fails.append(f"改写链路报错：{problems[:2]}")
             # 显示名必须是「原名 + 后缀」，不是被替换成产物名前缀
-            xml = (REPO_ROOT / "app/src/main/res/values-zh-rCN/values-zh.xml").read_text(encoding="utf-8")
+            xml = (REPO_ROOT / "app/src/main/res/values-zh-rCN/strings.xml").read_text(encoding="utf-8")
             if "抖柚.F" not in xml:
                 fails.append("中文显示名没有按「原名 + 后缀」改写")
             # 原文缺失必须整体失败（上游改了写法时的行为）
