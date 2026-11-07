@@ -17,8 +17,12 @@ import io.github.twyora.douyinenhancer.config.ConfigManager
 import io.github.twyora.douyinenhancer.config.gate.ConfigStateMode
 import io.github.twyora.douyinenhancer.config.kvstorage.FastKVStorage
 import io.github.twyora.douyinenhancer.utils.reflect.Field
-import io.github.twyora.douyinenhancer.utils.reflect.setFieldOrNull
+import io.github.twyora.douyinenhancer.utils.reflect.setFieldQuietly
 
+@Deprecated(
+    "V1 config dialogs are no longer maintained in the host;" +
+        " use the Compose-based settings in the module environment instead."
+)
 class HomeTabBlockDialog(context: Context) :
     AlertDialog.Builder(
         ContextThemeWrapper(
@@ -31,12 +35,12 @@ class HomeTabBlockDialog(context: Context) :
         override fun onCreate(savedInstanceState: Bundle?) {
             super.onCreate(savedInstanceState)
 
-            preferenceManager.setFieldOrNull(
+            preferenceManager.setFieldQuietly(
                 Field("mSharedPreferences"),
                 // TODO: Urgent refactor required. This relies on internal implementation details
                 ((ConfigManager.homeTab.kvConfig as FastKVStorage).fastKV) as SharedPreferences
             )
-            preferenceManager.setFieldOrNull(Field("mEditor"), null)
+            preferenceManager.setFieldQuietly(Field("mEditor"), null)
             addPreferencesFromResource(R.xml.pref_home_tab_block)
 
             ConfigManager.homeTab.allConfigItems.filter { configItem ->
@@ -68,6 +72,10 @@ class HomeTabBlockDialog(context: Context) :
     companion object {
         private val TAG = this::class.simpleName
 
+        @Deprecated(
+            "V1 config dialogs are no longer maintained in the host;" +
+                " use the Compose-based settings in the module environment instead."
+        )
         fun show(context: Context) {
             runCatching {
                 context.injectModuleResources()
