@@ -3,35 +3,16 @@ package io.github.twyora.douyinenhancer.ui.content.settings.filter.recommendedfe
 import androidx.compose.runtime.Stable
 
 @Stable
-class RecommendedFeedFilterTitleKeywordActions(
-    val onAdd: () -> Unit,
-    val onTextChange: (index: Int, text: String) -> Unit,
-    val onRemove: (index: Int) -> Unit,
-    val onRegexChange: (Boolean) -> Unit
-)
+class RecommendedFeedFilterTitleKeywordActions(val onSave: (keywords: Set<String>, regex: Boolean) -> Boolean)
 
 @Stable
-class RecommendedFeedFilterUidKeywordActions(
-    val onAdd: () -> Unit,
-    val onTextChange: (index: Int, text: String) -> Unit,
-    val onRemove: (index: Int) -> Unit
-)
+class RecommendedFeedFilterUidKeywordActions(val onSave: (keywords: Set<String>) -> Boolean)
 
 @Stable
-class RecommendedFeedFilterNicknameKeywordActions(
-    val onAdd: () -> Unit,
-    val onTextChange: (index: Int, text: String) -> Unit,
-    val onRemove: (index: Int) -> Unit,
-    val onRegexChange: (Boolean) -> Unit
-)
+class RecommendedFeedFilterNicknameKeywordActions(val onSave: (keywords: Set<String>, regex: Boolean) -> Boolean)
 
 @Stable
-class RecommendedFeedFilterDescKeywordActions(
-    val onAdd: () -> Unit,
-    val onTextChange: (index: Int, text: String) -> Unit,
-    val onRemove: (index: Int) -> Unit,
-    val onRegexChange: (Boolean) -> Unit
-)
+class RecommendedFeedFilterDescKeywordActions(val onSave: (keywords: Set<String>, regex: Boolean) -> Boolean)
 
 @Stable
 class RecommendedFeedFilterSwitchActions(

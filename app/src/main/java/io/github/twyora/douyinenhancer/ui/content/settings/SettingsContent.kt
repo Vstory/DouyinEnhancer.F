@@ -182,6 +182,13 @@ fun SettingsContentUiSection(uiState: SettingsContentUiConfig, uiActions: Settin
             uiActions.onNavigateToHomeTab()
         }
 
+        PreferenceItem(
+            title = stringResource(R.string.home_top_corner_entrance_dialog_title),
+            summary = stringResource(R.string.home_top_corner_entrance_dialog_summary)
+        ) {
+            uiActions.onNavigateToHomeTopCornerEntrance()
+        }
+
         SwitchPreferenceItem(
             title = stringResource(R.string.pref_ui_keep_danmaku_visible_title),
             summary = stringResource(R.string.pref_ui_keep_danmaku_visible_summary),
@@ -196,6 +203,14 @@ fun SettingsContentUiSection(uiState: SettingsContentUiConfig, uiActions: Settin
             checked = uiState.hideFollowButton
         ) {
             uiActions.onHideFollowButtonChange(it)
+        }
+
+        SwitchPreferenceItem(
+            title = stringResource(R.string.pref_ui_keep_clean_mode_title),
+            summary = stringResource(R.string.pref_ui_keep_clean_mode_summary),
+            checked = uiState.keepCleanMode
+        ) {
+            uiActions.onKeepCleanModeChange(it)
         }
     }
 }
@@ -299,7 +314,7 @@ fun SettingsContentPreview() {
                 blockAutoReplay = false,
                 blockAutoResumePlayback = false
             ),
-            SettingsContentUiConfig(keepDanmakuVisible = false, hideFollowButton = false),
+            SettingsContentUiConfig(keepDanmakuVisible = false, hideFollowButton = false, keepCleanMode = false),
             SettingsContentModuleConfig(hiddenFeature = false, disableVerbose = false)
         ),
         actions = SettingsContentActions()

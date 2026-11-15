@@ -40,6 +40,7 @@ import org.luckypray.dexkit.query.enums.StringMatchType
 import org.luckypray.dexkit.query.matchers.base.AccessFlagsMatcher
 import org.luckypray.dexkit.query.matchers.base.IntRange
 import org.luckypray.dexkit.query.matchers.base.OpCodesMatcher
+import org.luckypray.dexkit.result.FieldUsingType
 
 val Configs.Class.nameOrNull
     get() = if (hasName()) {
@@ -124,6 +125,8 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
     val videoPlayerStatus = VideoPlayerStatusModule(hookInfo.videoPlayerStatus, classLoader)
     val videoEvent = VideoEventModule(hookInfo.videoEvent, classLoader)
     val cleanModePresenter = CleanModePresenterModule(hookInfo.cleanModePresenter, classLoader)
+    val topCornerEntranceDataSource = TopCornerEntranceDataSourceModule(hookInfo.topCornerEntranceDataSource, classLoader)
+    val topCornerEntranceData = TopCornerEntranceDataModule(hookInfo.topCornerEntranceData, classLoader)
     val danmakuView = DanmakuViewModule(hookInfo.danmakuView, classLoader)
     val fluxComponentId = FluxComponentIdModule(hookInfo.fluxComponentId, classLoader)
     val fluxComponentDataAction = FluxComponentDataActionModule(hookInfo.fluxComponentDataAction, classLoader)
@@ -137,6 +140,8 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
     val playStatusHelper = PlayStatusHelperModule(hookInfo.playStatusHelper, classLoader)
     val heifImage = HeifImageModule(hookInfo.heifImage, classLoader)
     val heifFrame = HeifFrameModule(hookInfo.heifFrame, classLoader)
+    val pinchViewModel = PinchViewModelModule(hookInfo.pinchViewModel, classLoader)
+    val dismissWindowEvent = DismissWindowEventModule(hookInfo.dismissWindowEvent, classLoader)
 
     class CommentImageStructModule internal constructor(
         private val configs: Configs.CommentImageStruct,
@@ -974,6 +979,49 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
         )
     }
 
+    class TopCornerEntranceDataSourceModule internal constructor(
+        private val configs: Configs.TopCornerEntranceDataSource,
+        private val classLoader: ClassLoader
+    ) {
+        val selfClass by weak {
+            configs.class_.nameOrNull?.toClass(classLoader)
+        }
+
+        fun leftEntranceList() = Field(
+            name = configs.leftEntranceList.nameOrNull
+        )
+
+        fun getLeftEntranceList() = Method(
+            configs.getLeftEntranceList.nameOrNull,
+            configs.getLeftEntranceList.parameters.valuesListOrNull
+        )
+
+        fun getRightEntranceList() = Method(
+            configs.getRightEntranceList.nameOrNull,
+            configs.getRightEntranceList.parameters.valuesListOrNull
+        )
+    }
+
+    class TopCornerEntranceDataModule internal constructor(
+        private val configs: Configs.TopCornerEntranceData,
+        private val classLoader: ClassLoader
+    ) {
+        val selfClass by weak {
+            configs.class_.nameOrNull?.toClass(classLoader)
+        }
+
+        fun entranceId() = Field(configs.entranceId.nameOrNull)
+
+        companion object {
+            const val HOMEPAGE_RIGHT_SEARCH = "homepage_right_search"
+            const val HOMEPAGE_LEFT_SCAN = "homepage_left_scan"
+            const val HOMEPAGE_LEFT_SIDEBAR = "homepage_left_sidebar"
+            const val HOMEPAGE_LEFT_SIDEBAR_JX = "homepage_left_sidebar_jx"
+            const val HOMEPAGE_LEFT_LOGIN = "homepage_left_login"
+            const val HOMEPAGE_LEFT_EXTENSION_COMPONENT = "homepage_left_extension_component"
+        }
+    }
+
     class DanmakuViewModule internal constructor(private val configs: Configs.DanmakuView, private val classLoader: ClassLoader) {
         val selfClass by weak {
             configs.class_.nameOrNull?.toClass(classLoader)
@@ -1179,6 +1227,40 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
             configs.dispose.nameOrNull,
             configs.dispose.parameters.valuesListOrNull
         )
+    }
+
+    class PinchViewModelModule internal constructor(private val configs: Configs.PinchViewModel, private val classLoader: ClassLoader) {
+        val selfClass by weak {
+            configs.class_.nameOrNull?.toClass(classLoader)
+        }
+
+        fun dismissWindow() = Method(
+            configs.dismissWindow.nameOrNull,
+            configs.dismissWindow.parameters.valuesListOrNull
+        )
+
+        fun setDismissWindowEvent() = Method(
+            configs.setDismissWindowEvent.nameOrNull,
+            configs.setDismissWindowEvent.parameters.valuesListOrNull
+        )
+    }
+
+    class DismissWindowEventModule internal constructor(
+        private val configs: Configs.DismissWindowEvent,
+        private val classLoader: ClassLoader
+    ) {
+        val selfClass by weak {
+            configs.class_.nameOrNull?.toClass(classLoader)
+        }
+
+        fun dismissWithSurface() = Field(configs.dismissWithSurface.nameOrNull)
+
+        fun enterMethod() = Field(configs.enterMethod.nameOrNull)
+
+        companion object {
+            const val ENTER_METHOD_SLIDE_UP = "slide_up"
+            const val ENTER_METHOD_SLIDE_DOWN = "slide_down"
+        }
     }
 
     companion object {
@@ -4457,6 +4539,239 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                                 values.clear()
                                 values.addAll(disposeMethodData.paramTypeNames)
                             }
+                        }
+                    }.onFailure {
+                        YLog.error(populateFailedMsg.format(TAG), it)
+                    }
+                }
+
+                dismissWindowEvent = dismissWindowEvent {
+                    runCatching {
+                        val dismissWindowEventClassData = bridge.findClass {
+                            matcher {
+                                method {
+                                    name = "toString"
+                                    usingStrings {
+                                        add("DismissWindowEvent", matchType = StringMatchType.StartsWith)
+                                    }
+                                }
+                            }
+                        }.singleOrNull()
+                        val dismissWithSurfaceFieldData = dismissWindowEventClassData?.let {
+                            bridge.findField {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    type = "java.lang.Boolean"
+                                }
+                            }.singleOrNull()
+                        }
+                        val enterMethodFieldData = dismissWindowEventClassData?.let {
+                            bridge.findField {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    type = "java.lang.String"
+                                }
+                            }.singleOrNull()
+                        }
+                        if (dismissWindowEventClassData == null ||
+                            dismissWithSurfaceFieldData == null ||
+                            enterMethodFieldData == null
+                        ) {
+                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
+                            return@dismissWindowEvent
+                        }
+
+                        class_ = class_ {
+                            name = dismissWindowEventClassData.name
+                        }
+                        dismissWithSurface = field {
+                            name = dismissWithSurfaceFieldData.name
+                        }
+                        enterMethod = field {
+                            name = enterMethodFieldData.name
+                        }
+                    }.onFailure {
+                        YLog.error(populateFailedMsg.format(TAG), it)
+                    }
+                }
+
+                pinchViewModel = pinchViewModel {
+                    runCatching {
+                        val pinchViewModelClassData = bridge.findClass {
+                            matcher {
+                                superClass = "androidx.lifecycle.ViewModel"
+                                usingStrings {
+                                    add("livesdk_co_play")
+                                }
+                            }
+                        }.singleOrNull()
+                        val dismissWindowMethodData = pinchViewModelClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    params {
+                                        add("java.lang.Boolean")
+                                    }
+                                    returnType = "void"
+                                    usingStrings {
+                                        add("", matchType = StringMatchType.Equals)
+                                    }
+                                    invokeMethods {
+                                        add {
+                                            descriptor = "Landroidx/lifecycle/LiveData;->setValue(Ljava/lang/Object;)V"
+                                        }
+                                    }
+                                }
+                            }.singleOrNull()
+                        }
+                        val setDismissWindowEventMethodData = pinchViewModelClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    params {
+                                        this@apply.dismissWindowEvent.class_.nameOrNull?.let { eventClassName ->
+                                            add(eventClassName)
+                                        }
+                                    }
+                                    returnType = "void"
+                                    invokeMethods {
+                                        add {
+                                            descriptor = "Landroidx/lifecycle/LiveData;->setValue(Ljava/lang/Object;)V"
+                                        }
+                                    }
+                                }
+                            }.singleOrNull()
+                        }
+                        if (pinchViewModelClassData == null ||
+                            dismissWindowMethodData == null ||
+                            setDismissWindowEventMethodData == null
+                        ) {
+                            if (pinchViewModelClassData == null) {
+                                YLog.error("$TAG: pinchViewModelClassData is null")
+                            }
+                            if (dismissWindowMethodData == null) {
+                                YLog.error("$TAG: dismissWindowMethodData is null")
+                            }
+                            if (setDismissWindowEventMethodData == null) {
+                                YLog.error("$TAG: setDismissWindowEventMethodData is null")
+                            }
+                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
+                            return@pinchViewModel
+                        }
+
+                        class_ = class_ {
+                            name = pinchViewModelClassData.name
+                        }
+                        dismissWindow = method {
+                            name = dismissWindowMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(dismissWindowMethodData.paramTypeNames)
+                            }
+                        }
+                        setDismissWindowEvent = method {
+                            name = setDismissWindowEventMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(setDismissWindowEventMethodData.paramTypeNames)
+                            }
+                        }
+                    }.onFailure {
+                        YLog.error(populateFailedMsg.format(TAG), it)
+                    }
+                }
+
+                topCornerEntranceData = topCornerEntranceData {
+                    runCatching {
+                        val topCornerEntranceDataClassData = bridge.findClass {
+                            matcher {
+                                method {
+                                    name = "toString"
+                                    usingStrings {
+                                        add("TopCornerEntranceData", matchType = StringMatchType.StartsWith)
+                                    }
+                                }
+                            }
+                        }.singleOrNull()
+                        val entranceIdFieldData = topCornerEntranceDataClassData?.let {
+                            bridge.findField {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    annotations {
+                                        add {
+                                            type = "com.google.gson.annotations.SerializedName"
+                                            addElement {
+                                                name = "value"
+                                                stringValue("entrance_id")
+                                            }
+                                        }
+                                    }
+                                }
+                            }.singleOrNull()
+                        }
+                        if (topCornerEntranceDataClassData == null ||
+                            entranceIdFieldData == null
+                        ) {
+                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
+                            return@topCornerEntranceData
+                        }
+
+                        class_ = class_ {
+                            name = topCornerEntranceDataClassData.name
+                        }
+                        entranceId = field {
+                            name = entranceIdFieldData.name
+                        }
+                    }.onFailure {
+                        YLog.error(populateFailedMsg.format(TAG), it)
+                    }
+                }
+
+                topCornerEntranceDataSource = topCornerEntranceDataSource {
+                    runCatching {
+                        val getRightEntranceListMethodData = bridge.findMethod {
+                            matcher {
+                                modifiers = Modifier.PUBLIC or Modifier.SYNCHRONIZED
+                                paramCount = 0
+                                returnType = "java.util.List"
+                                usingStrings {
+                                    add("homepage_right_search")
+                                }
+                            }
+                        }.singleOrNull()
+                        val topCornerEntranceDataSourceClassData = getRightEntranceListMethodData?.declaredClass
+                        val getLeftEntranceListMethodData = topCornerEntranceDataSourceClassData?.methods?.singleOrNull { method ->
+                            method.returnType?.name == "java.util.List" && method.name != getRightEntranceListMethodData.name
+                        }
+                        val leftEntranceListFieldData = getLeftEntranceListMethodData?.let {
+                            it.usingFields.filter { usingFieldData ->
+                                usingFieldData.usingType == FieldUsingType.Write
+                            }.map { usingFieldData ->
+                                usingFieldData.field
+                            }.singleOrNull { field ->
+                                field.declaredClass == it.declaredClass && field.typeName == "java.util.List"
+                            }
+                        }
+                        if (getRightEntranceListMethodData == null ||
+                            topCornerEntranceDataSourceClassData == null ||
+                            getLeftEntranceListMethodData == null ||
+                            leftEntranceListFieldData == null
+                        ) {
+                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
+                            return@topCornerEntranceDataSource
+                        }
+
+                        class_ = class_ {
+                            name = topCornerEntranceDataSourceClassData.name
+                        }
+                        leftEntranceList = field {
+                            name = leftEntranceListFieldData.name
+                        }
+                        getLeftEntranceList = method {
+                            name = getLeftEntranceListMethodData.methodName
+                        }
+                        getRightEntranceList = method {
+                            name = getRightEntranceListMethodData.methodName
                         }
                     }.onFailure {
                         YLog.error(populateFailedMsg.format(TAG), it)

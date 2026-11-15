@@ -80,13 +80,16 @@ import io.github.twyora.douyinenhancer.ui.content.settings.filter.recommendedfee
 import io.github.twyora.douyinenhancer.ui.content.settings.filter.recommendedfeed.RecommendedFeedFilterTitleKeywordActions
 import io.github.twyora.douyinenhancer.ui.content.settings.filter.recommendedfeed.RecommendedFeedFilterUidKeywordActions
 import io.github.twyora.douyinenhancer.ui.content.settings.filter.recommendedfeed.RecommendedFeedFilterViewModel
-import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.hometab.tabs.HomeBottomTabVisibilityActions
-import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.hometab.tabs.HomeTabVisibilityActions
-import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.hometab.tabs.HomeTabVisibilityContent
-import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.hometab.tabs.HomeTabVisibilityViewModel
-import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.hometab.tabs.HomeTopTabVisibilityActions
+import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.home.entrance.corner.top.HomeTopCornerEntranceVisibilityActions
+import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.home.entrance.corner.top.HomeTopCornerEntranceVisibilityContent
+import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.home.entrance.corner.top.HomeTopCornerEntranceVisibilityViewModel
+import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.home.tab.HomeBottomTabVisibilityActions
+import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.home.tab.HomeTabVisibilityActions
+import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.home.tab.HomeTabVisibilityContent
+import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.home.tab.HomeTabVisibilityViewModel
+import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.home.tab.HomeTopTabVisibilityActions
 import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.playback.components.PlaybackComponentVisibilityActions
-import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.playback.components.PlaybackComponentVisibilityContext
+import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.playback.components.PlaybackComponentVisibilityContent
 import io.github.twyora.douyinenhancer.ui.content.settings.visiblity.playback.components.PlaybackComponentVisibilityViewModel
 import io.github.twyora.douyinenhancer.ui.event.SnackEvent
 import io.github.twyora.douyinenhancer.ui.navigation.AppRoutes
@@ -135,6 +138,10 @@ class MainActivity : ComponentActivity() {
         UriDeepLinkMatcher(
             DeepLinkUri("douyinenhancer://io.github.twyora.douyinenhancer/settings/playback-component"),
             serializer = serializer<AppRoutes.Settings.PlaybackComponent>()
+        ),
+        UriDeepLinkMatcher(
+            DeepLinkUri("douyinenhancer://io.github.twyora.douyinenhancer/settings/home-top-corner-entrance"),
+            serializer = serializer<AppRoutes.Settings.HomeTopCornerEntrance>()
         )
     )
 
@@ -189,7 +196,7 @@ class MainActivity : ComponentActivity() {
                 val langCode = LocalConfiguration.current.locales[0].language
                 LaunchedEffect(langCode) {
                     navFlow.collect { navKey ->
-                        if (backstack.lastOrNull() is AppRoutes.Verification) {
+                        if (backstack.lastOrNull() == navKey) {
                             return@collect
                         }
 
@@ -220,6 +227,7 @@ class MainActivity : ComponentActivity() {
                             AppRoutes.Settings.Main,
                             AppRoutes.Settings.RecommendedFeedFilter,
                             AppRoutes.Settings.PlaybackComponent,
+                            AppRoutes.Settings.HomeTopCornerEntrance,
                             AppRoutes.Settings.HomeTab -> NavEntry(key) {
                                 Scaffold(
                                     snackbarHost = {
@@ -249,6 +257,10 @@ class MainActivity : ComponentActivity() {
                                         )
 
                                         AppRoutes.Settings.PlaybackComponent -> PlaybackComponentVisibilityScreen(
+                                            innerPadding = innerPadding
+                                        )
+
+                                        AppRoutes.Settings.HomeTopCornerEntrance -> HomeTopCornerEntranceVisibilityScreen(
                                             innerPadding = innerPadding
                                         )
 
@@ -644,11 +656,17 @@ class MainActivity : ComponentActivity() {
                 onNavigateToHomeTab = {
                     vm.requestNavigation(AppRoutes.Settings.HomeTab)
                 },
+                onNavigateToHomeTopCornerEntrance = {
+                    vm.requestNavigation(AppRoutes.Settings.HomeTopCornerEntrance)
+                },
                 onKeepDanmakuVisibleChange = {
                     vm.setKeepDanmakuVisible(it)
                 },
                 onHideFollowButtonChange = {
                     vm.setHideFollowButton(it)
+                },
+                onKeepCleanModeChange = {
+                    vm.setKeepCleanMode(it)
                 }
             )
         }
@@ -767,56 +785,23 @@ class MainActivity : ComponentActivity() {
         val keywordActions = remember {
             RecommendedFeedFilterKeywordActions(
                 title = RecommendedFeedFilterTitleKeywordActions(
-                    onAdd = {
-                        vm.addTitleKeyword()
-                    },
-                    onTextChange = { index, text ->
-                        vm.setTitleKeywordText(index, text)
-                    },
-                    onRemove = { index ->
-                        vm.removeTitleKeyword(index)
-                    },
-                    onRegexChange = {
-                        vm.setTitleRegex(it)
+                    onSave = { keywords, regex ->
+                        vm.saveTitleFilter(keywords, regex)
                     }
                 ),
                 uid = RecommendedFeedFilterUidKeywordActions(
-                    onAdd = {
-                        vm.addUidKeyword()
-                    },
-                    onTextChange = { index, text ->
-                        vm.setUidKeywordText(index, text)
-                    },
-                    onRemove = { index ->
-                        vm.removeUidKeyword(index)
+                    onSave = { keywords ->
+                        vm.saveUidFilter(keywords)
                     }
                 ),
                 nickname = RecommendedFeedFilterNicknameKeywordActions(
-                    onAdd = {
-                        vm.addNicknameKeyword()
-                    },
-                    onTextChange = { index, text ->
-                        vm.setNicknameKeywordText(index, text)
-                    },
-                    onRemove = { index ->
-                        vm.removeNicknameKeyword(index)
-                    },
-                    onRegexChange = {
-                        vm.setNicknameRegex(it)
+                    onSave = { keywords, regex ->
+                        vm.saveNicknameFilter(keywords, regex)
                     }
                 ),
                 desc = RecommendedFeedFilterDescKeywordActions(
-                    onAdd = {
-                        vm.addDescKeyword()
-                    },
-                    onTextChange = { index, text ->
-                        vm.setDescKeywordText(index, text)
-                    },
-                    onRemove = { index ->
-                        vm.removeDescKeyword(index)
-                    },
-                    onRegexChange = {
-                        vm.setDescRegex(it)
+                    onSave = { keywords, regex ->
+                        vm.saveDescFilter(keywords, regex)
                     }
                 )
             )
@@ -884,8 +869,33 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        PlaybackComponentVisibilityContext(
+        PlaybackComponentVisibilityContent(
             config = configs,
+            actions = actions,
+            modifier = modifier.padding(innerPadding)
+        )
+    }
+
+    @Composable
+    private fun HomeTopCornerEntranceVisibilityScreen(modifier: Modifier = Modifier, innerPadding: PaddingValues) {
+        val vm: HomeTopCornerEntranceVisibilityViewModel = viewModel()
+        val config by vm.homeTopCornerEntranceConfig.collectAsStateWithLifecycle()
+        val actions = remember {
+            HomeTopCornerEntranceVisibilityActions(
+                onRightMainSwitchChange = { checked ->
+                    vm.onRightMainSwitchChange(checked)
+                },
+                onLeftMainSwitchChange = { checked ->
+                    vm.onLeftMainSwitchChange(checked)
+                },
+                onSwitchChange = { key, checked ->
+                    vm.onSwitchChange(key, checked)
+                }
+            )
+        }
+
+        HomeTopCornerEntranceVisibilityContent(
+            config = config,
             actions = actions,
             modifier = modifier.padding(innerPadding)
         )
@@ -914,6 +924,12 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(Unit) {
             vm.triggerVerifyFailure.collect {
+                vm.setSupportingText(currLocalResources.getString(R.string.verify_toast_failure))
+            }
+        }
+
+        LaunchedEffect(Unit) {
+            vm.triggerVerifyCancel.collect {
                 onDismiss()
             }
         }

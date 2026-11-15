@@ -35,6 +35,8 @@
     <string name="pref_ui_keep_danmaku_visible_summary">Keep danmaku visible when entering clean mode</string>
     <string name="pref_ui_hide_follow_button_title">Hide Follow Button</string>
     <string name="pref_ui_hide_follow_button_summary">Hide the follow button on the playback page</string>
+    <string name="pref_ui_keep_clean_mode_title">Keep Clean Mode</string>
+    <string name="pref_ui_keep_clean_mode_summary">Do not exit clean mode when switching feeds</string>
     <string name="recommended_feed_filter_main_switch_title">Main switch</string>
     <string name="recommended_feed_filter_main_switch_summary">Turn on to use recommended feed filtering features</string>
     <string name="recommended_feed_filter_block_followed_author_title">Hide content from followed creators</string>
@@ -156,6 +158,22 @@
 
     <string name="home_tab_block_summary">Hide navigation entries on the top or bottom bar of the home page</string>
 
+    <string name="home_top_corner_entrance_dialog_title">Top Corner Entrance Hiding</string>
+    <string name="home_top_corner_entrance_dialog_summary">Hide specified entrances at the top corners of the home page</string>
+    <string name="home_top_corner_entrance_right_main_switch">Hide Right Entrances</string>
+    <string name="home_top_corner_entrance_right_main_switch_summary">Enable to hide entrances on the top-right corner</string>
+    <string name="home_top_corner_entrance_left_main_switch">Hide Left Entrances</string>
+    <string name="home_top_corner_entrance_left_main_switch_summary">Enable to hide entrances on the top-left corner</string>
+    <string name="home_top_corner_entrance_right_category">Right</string>
+    <string name="home_top_corner_entrance_left_category">Left</string>
+
+    <string name="home_top_corner_entrance_hide_right_search">Search</string>
+    <string name="home_top_corner_entrance_hide_left_scan">Scan</string>
+    <string name="home_top_corner_entrance_hide_left_sidebar">Sidebar</string>
+    <string name="home_top_corner_entrance_hide_left_sidebar_jx">Sidebar_JX</string>
+    <string name="home_top_corner_entrance_hide_left_login">Login</string>
+    <string name="home_top_corner_entrance_hide_left_extension_component">Extension Component</string>
+
     <string name="pref_category_backup">Backup &amp; Restore</string>
     <string name="pref_backup_export_title">Export Config</string>
     <string name="pref_backup_import_title">Import Config</string>
@@ -218,7 +236,7 @@
     <string name="pref_about_build_time_title">Build Time</string>
     <string name="unknown">Unknown</string>
     <string name="pref_about_back_then_title">Back Then🎵</string>
-    <string name="pref_about_back_then_summary">就这样 我们成为一颗\n发光的星球\n终于能够为自己\n照耀一个梦\n当我 回过头看看我\n才发现原来不知不觉中\n那光就是我🎵</string>
+    <string name="pref_about_back_then_summary">印上永世的无悔的封印之焰\n轮回几世的变迁 不变的一念\n回首的瞬间 梦醒融化如雪\n盛开为你埋葬的誓言🎵</string>
 
     <string name="success">Success</string>
     <string name="failed">Failed</string>
