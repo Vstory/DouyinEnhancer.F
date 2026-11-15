@@ -275,17 +275,87 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "已按固定密钥配置签名（环境变量注入，gropify 读取）"
 
+      # Gradle 起来之前先探一次 Plugin Portal，把真实状态码钉出来。
+      #   2026-11-15 run 43719204515 挂在 `Plugin [id: 'org.gradle.toolchains.foojay-resolver-convention',
+      #   version: '1.0.0'] was not found`，三个仓库全「没有」却**不带任何 HTTP 状态码**，
+      #   同一提交复跑就过 —— 出口侧偶发，光看 Gradle 日志分不出是配置错还是网络空响应。
+      #   坐标从 *.gradle.kts 里现抽 `id("…") version "…"`，插件升版不必改这里；
+      #   Portal 上实现包会 303 跳 Maven Central，所以只验标记 POM（Gradle 解析的第一跳）。
+      #   判据：任一条 200 即出口正常；全 404 说明这些插件不走 Portal（交由 Gradle 去 Central），
+      #   同样放行；只有连不上/5xx 才三轮后判红。
+      - name: Probe Gradle plugin portal
+        run: |
+          set -uo pipefail
+          mapfile -t coords < <(python3 - <<'PY'
+          import pathlib, re
+          seen = {}
+          for f in pathlib.Path('.').rglob('*.gradle.kts'):
+              if 'build/' in f.as_posix():
+                  continue
+              for pid, ver in re.findall(r'id\("([A-Za-z0-9_.\-]+)"\)\s*version\s*"([^"]+)"',
+                                         f.read_text(encoding='utf-8')):
+                  seen.setdefault(pid, ver)
+          for pid, ver in sorted(seen.items()):
+              print(pid, ver)
+          PY
+          )
+          if [ "${#coords[@]}" -eq 0 ]; then
+            echo "未找到 id(\"…\") version \"…\" 声明，跳过探测"
+            exit 0
+          fi
+          ok=0; netfail=0; last=000
+          for round in 1 2 3; do
+            for c in "${coords[@]}"; do
+              id=${c%% *}; ver=${c##* }
+              url="https://plugins.gradle.org/m2/${id//.//}/$id.gradle.plugin/$ver/$id.gradle.plugin-$ver.pom"
+              code=$(curl -sSL -m 20 -o /dev/null -w '%{http_code}' "$url" 2>/dev/null) || code=000
+              [ -n "$code" ] || code=000
+              last=$code
+              echo "probe[$round] $id:$ver -> HTTP $code"
+              case "$code" in
+                200) ok=1 ;;
+                404) : ;;
+                *)   netfail=$((netfail + 1)) ;;
+              esac
+            done
+            if [ "$ok" = 1 ]; then echo "Portal 正常"; exit 0; fi
+            if [ "$netfail" -eq 0 ]; then echo "全部 404：这些插件不走 Portal，交给 Gradle 去 Maven Central"; exit 0; fi
+            if [ "$round" -lt 3 ]; then sleep 10; fi
+          done
+          echo "::error::Gradle Plugin Portal 取不到标记 POM（异常 $netfail 次，末次 HTTP $last）—— 这台 runner 的出口有问题，不是配置问题"
+          exit 1
+
       # 版本号经 -P 传给 Gradle（flavor 规则由 ci-fork-identity.py 改写）：versionCode 用本次
       #   构建的时间戳、versionName 拼 `+ci.<短号>`。
       #   变体口径由所选模板固定（只出 release），要换口径换模板文件。
+      #
+      # 插件解析失败重试一次（上限 1 次）：只认「插件找不到」这一种错误 —— 上面那个偶发会以
+      #   完全相同的报错出现，重试即过；其余构建错误（编译、dex、签名……）立刻失败，不掩盖真问题。
       - name: Gradle build
         run: |
           set -euo pipefail
           chmod +x gradlew
+
+          gradle_retry() {
+            local log rc
+            log="$(mktemp)"
+            rc=0
+            "$@" 2>&1 | tee "$log" || rc=${PIPESTATUS[0]}
+            if [ "$rc" -ne 0 ] && grep -qE "was not found in any of the following sources|could not resolve plugin artifact" "$log"; then
+              echo "::warning::插件解析失败（疑似出口侧偶发，非配置问题）—— 15 秒后重试一次"
+              sleep 15
+              rc=0
+              "$@" || rc=$?
+              if [ "$rc" -eq 0 ]; then echo "重试成功"; fi
+            fi
+            rm -f "$log"
+            return "$rc"
+          }
+
           for v in $VARIANT_LIST; do
             case "$v" in
-              debug)   ./gradlew --no-daemon :app:assembleCIDebug   -PciVersionCode="$CODE" -PciVersionSuffix="$SHORT" ;;
-              release) ./gradlew --no-daemon :app:assembleCIRelease -PciVersionCode="$CODE" -PciVersionSuffix="$SHORT" ;;
+              debug)   gradle_retry ./gradlew --no-daemon :app:assembleCIDebug   -PciVersionCode="$CODE" -PciVersionSuffix="$SHORT" ;;
+              release) gradle_retry ./gradlew --no-daemon :app:assembleCIRelease -PciVersionCode="$CODE" -PciVersionSuffix="$SHORT" ;;
             esac
           done
           ls -la app/build/outputs/apk/CI/*/ || true
