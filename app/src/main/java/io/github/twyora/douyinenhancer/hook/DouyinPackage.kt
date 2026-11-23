@@ -127,6 +127,7 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
     val cleanModePresenter = CleanModePresenterModule(hookInfo.cleanModePresenter, classLoader)
     val topCornerEntranceDataSource = TopCornerEntranceDataSourceModule(hookInfo.topCornerEntranceDataSource, classLoader)
     val topCornerEntranceData = TopCornerEntranceDataModule(hookInfo.topCornerEntranceData, classLoader)
+    val compilationSpeedInheritComponent = CompilationSpeedInheritComponentModule(hookInfo.compilationSpeedInheritComponent, classLoader)
     val danmakuView = DanmakuViewModule(hookInfo.danmakuView, classLoader)
     val fluxComponentId = FluxComponentIdModule(hookInfo.fluxComponentId, classLoader)
     val fluxComponentDataAction = FluxComponentDataActionModule(hookInfo.fluxComponentDataAction, classLoader)
@@ -1022,6 +1023,20 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
         }
     }
 
+    class CompilationSpeedInheritComponentModule internal constructor(
+        private val configs: Configs.CompilationSpeedInheritComponent,
+        private val classLoader: ClassLoader
+    ) {
+        val selfClass by weak {
+            configs.class_.nameOrNull?.toClass(classLoader)
+        }
+
+        fun needInheritSpeed() = Method(
+            configs.needInheritSpeed.nameOrNull,
+            configs.needInheritSpeed.parameters.valuesListOrNull
+        )
+    }
+
     class DanmakuViewModule internal constructor(private val configs: Configs.DanmakuView, private val classLoader: ClassLoader) {
         val selfClass by weak {
             configs.class_.nameOrNull?.toClass(classLoader)
@@ -1153,6 +1168,11 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
         fun updateFollowView() = Method(
             configs.updateFollowView.nameOrNull,
             configs.updateFollowView.parameters.valuesListOrNull
+        )
+
+        fun performFollow() = Method(
+            configs.performFollow.nameOrNull,
+            configs.performFollow.parameters.valuesListOrNull
         )
     }
 
@@ -4319,8 +4339,25 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                                 }
                             }.singleOrNull()
                         }
+                        val performFollowMethodData = feedAvatarPresenterClassData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    modifiers = Modifier.PUBLIC
+                                    params {
+                                        add("java.lang.String")
+                                    }
+                                    returnType = "boolean"
+                                    usingStrings {
+                                        add("plus_sign")
+                                    }
+                                }
+                            }.singleOrNull()
+                        }
 
-                        if (feedAvatarPresenterClassData == null || updateFollowViewMethodData == null) {
+                        if (feedAvatarPresenterClassData == null || updateFollowViewMethodData == null ||
+                            performFollowMethodData == null
+                        ) {
                             YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
                             return@feedAvatarPresenter
                         }
@@ -4333,6 +4370,13 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                             parameters = MethodKt.parameters {
                                 values.clear()
                                 values.addAll(updateFollowViewMethodData.paramTypeNames)
+                            }
+                        }
+                        performFollow = method {
+                            name = performFollowMethodData.methodName
+                            parameters = MethodKt.parameters {
+                                values.clear()
+                                values.addAll(performFollowMethodData.paramTypeNames)
                             }
                         }
                     }.onFailure {
@@ -4772,6 +4816,36 @@ class DouyinPackage(classLoader: ClassLoader, context: Context) {
                         }
                         getRightEntranceList = method {
                             name = getRightEntranceListMethodData.methodName
+                        }
+                    }.onFailure {
+                        YLog.error(populateFailedMsg.format(TAG), it)
+                    }
+                }
+
+                compilationSpeedInheritComponent = compilationSpeedInheritComponent {
+                    runCatching {
+                        val classData = bridge.getClassData(
+                            "com.ss.android.ugc.aweme.feed.plato.business.contentconsumption.speed.CompilationSpeedInheritComponent"
+                        )
+                        val needInheritSpeedMethodData = classData?.let {
+                            bridge.findMethod {
+                                searchClasses = listOf(it)
+                                matcher {
+                                    returnType = "boolean"
+                                    paramCount = 0
+                                }
+                            }.singleOrNull()
+                        }
+                        if (classData == null || needInheritSpeedMethodData == null) {
+                            YLog.error(symbolNotFoundMsg.format(TAG, this::class.java.enclosingClass?.simpleName))
+                            return@compilationSpeedInheritComponent
+                        }
+
+                        class_ = class_ {
+                            name = classData.name
+                        }
+                        needInheritSpeed = method {
+                            name = needInheritSpeedMethodData.methodName
                         }
                     }.onFailure {
                         YLog.error(populateFailedMsg.format(TAG), it)

@@ -418,6 +418,7 @@ message HomeTabDataSourceDefault {
 message FeedAvatarPresenter {
   optional Class class = 1;
   optional Method update_follow_view = 2;
+  optional Method perform_follow = 3;
 }
 
 message PlayStatusHelper {
@@ -464,6 +465,11 @@ message TopCornerEntranceDataSource {
   optional Field left_entrance_list = 2;
   optional Method get_left_entrance_list = 3;
   optional Method get_right_entrance_list = 4;
+}
+
+message CompilationSpeedInheritComponent {
+  optional Class class = 1;
+  optional Method need_inherit_speed = 2;
 }
 
 message HookInfo {
@@ -531,6 +537,7 @@ message HookInfo {
   optional DismissWindowEvent dismiss_window_event = 73;
   optional TopCornerEntranceDataSource top_corner_entrance_data_source = 74;
   optional TopCornerEntranceData top_corner_entrance_data = 75;
+  optional CompilationSpeedInheritComponent compilation_speed_inherit_component = 76;
 
   reserved 13, 18, 32, 35, 36, 38, 39, 40, 55, 64, 65;
 }
